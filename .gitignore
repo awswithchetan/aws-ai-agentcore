@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+venv/
+.venv/
+env/
+.env
+
+# Environment variables — never commit secrets
+.env
+.env.*
+*.env
+
+# AWS
+.aws/
+*.pem
+*.key
+
+# AgentCore CLI
+.agentcore/
+agentcore-build/
+
+# AgentCore CLI test/scratch projects (never commit these)
+testagent/
+testproject/
+
+# Docker
+*.tar
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs
+*.log
+logs/
