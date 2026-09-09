@@ -9,12 +9,17 @@ This is the agent that evolves through the rest of the course. Every subsequent 
 ## What You Will Build
 
 ```
-aria/
+aria-agent/
 ├── agent.py          # Aria agent code (Strands + BedrockAgentCoreApp)
 ├── requirements.txt  # Python dependencies
+├── Dockerfile        # Container image (recommended — framework-agnostic)
+└── .dockerignore     # Keeps the build context clean
 ```
 
-Deployed to AgentCore Runtime as a zip package — no Docker required.
+Two deployment options are covered: **Docker (recommended)** and zip.
+Docker is preferred because it works identically regardless of which agent
+framework you use — swap `requirements.txt` and `agent.py` for LangChain,
+CrewAI, or any other framework without touching the deployment pipeline.
 
 ---
 
@@ -60,7 +65,81 @@ AWS_REGION=us-east-1
 
 ## Step 3 — Deploy to AgentCore Runtime
 
-### Via AWS Console
+### Option A — Docker (Recommended)
+
+Docker is the recommended approach. It is framework-agnostic — you can swap
+the agent framework at any point without changing the deployment pipeline.
+
+#### 3a. Create an ECR repository
+
+```bash
+aws ecr create-repository \
+  --repository-name aria-agent \
+  --region us-east-1
+```
+
+Note the `repositoryUri` from the output — you will use it in the next step.
+
+#### 3b. Build and push the image
+
+```bash
+# Set your values
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export AWS_REGION=us-east-1
+export ECR_REPO=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aria-agent
+
+# Authenticate Docker to ECR
+aws ecr get-login-password --region $AWS_REGION \
+  | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+# Build and push
+cd aria-agent
+docker build -t aria-agent .
+docker tag aria-agent:latest $ECR_REPO:latest
+docker push $ECR_REPO:latest
+cd ..
+```
+
+#### 3c. Deploy via AWS Console
+
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
+2. Configure:
+   - **Agent runtime name**: `aria`
+   - **Description**: ShopSmart AI customer support agent
+   - **Deployment method**: Container image
+   - **Image URI**: `<your-ecr-repo-uri>:latest`
+3. **Environment variables**: add `KNOWLEDGE_BASE_ID` and `AWS_REGION`
+4. **Execution role**: select `AriaHarnessExecutionRole` (created in Module 02)
+5. Click **Create agent runtime**
+6. Wait until status shows **Active**
+7. Note down the **Agent Runtime ARN** and **Endpoint URL**
+
+#### 3c. Deploy via CLI (Optional)
+
+```bash
+aws bedrock-agentcore control create-agent-runtime \
+  --agent-runtime-name "aria" \
+  --description "ShopSmart AI customer support agent" \
+  --agent-runtime-artifact "{
+    \"containerArtifact\": {
+      \"containerImage\": {
+        \"uri\": \"$ECR_REPO:latest\"
+      }
+    }
+  }" \
+  --environment-variables "KNOWLEDGE_BASE_ID=$KNOWLEDGE_BASE_ID,AWS_REGION=$AWS_REGION" \
+  --network-configuration '{"networkMode": "PUBLIC"}' \
+  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaHarnessExecutionRole" \
+  --region us-east-1
+```
+
+---
+
+### Option B — Zip (Simpler, no Docker required)
+
+Use this if you want to get started quickly without a Docker setup.
+
+#### Via AWS Console
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
 2. Configure:
@@ -77,7 +156,7 @@ AWS_REGION=us-east-1
 6. Wait until status shows **Active**
 7. Note down the **Agent Runtime ARN** and **Endpoint URL**
 
-### Package and upload via CLI (Optional)
+#### Via CLI (Optional)
 
 ```bash
 # From repo root
@@ -135,7 +214,8 @@ streamlit run streamlit-ui/app.py
 - How AgentCore Runtime works — isolated execution environment for your agent code
 - How to structure a Strands agent with `BedrockAgentCoreApp`
 - How the `@app.entrypoint` decorator wires your function into the Runtime
-- How to deploy a Python agent as a zip package
+- How to package an agent as a Docker image and push it to ECR
+- Why Docker is the framework-agnostic choice for production deployments
 - How to connect the Knowledge Base as a retrieval tool
 
 ---
