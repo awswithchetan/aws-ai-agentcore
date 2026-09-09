@@ -41,19 +41,25 @@ modules/module-05-gateway/
 
 ## Step 1 — Deploy the ShopSmart Backend
 
-### 1a. Package and upload Lambda code to S3
+### 1a. Create an S3 bucket for Lambda deployment packages
 
-CloudFormation needs the Lambda code in S3 to deploy it. Create a bucket and
-upload each function:
+You need an S3 bucket to upload the Lambda zip files before CloudFormation can
+deploy them. Create it once — it will be reused for all future deployments.
 
 ```bash
 export AWS_REGION=us-east-1
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export BUCKET=shopsmart-lambda-$AWS_ACCOUNT_ID
 
-# Create bucket (skip if it already exists)
 aws s3 mb s3://$BUCKET --region $AWS_REGION
+```
 
+> The bucket name includes your account ID to make it globally unique.
+> S3 bucket names must be unique across all AWS accounts worldwide.
+
+### 1b. Package and upload Lambda code to S3
+
+```bash
 # Package and upload Lambda functions
 cd shopsmart-backend/lambdas
 for f in list_orders get_order get_product search_products submit_request; do
@@ -63,7 +69,7 @@ done
 cd ../..
 ```
 
-### 1b. Update the CloudFormation template to reference S3
+### 1c. Update the CloudFormation template to reference S3
 
 In `shopsmart-backend/cloudformation/shopsmart-backend.yaml`, replace each
 Lambda function's `Code` section from the placeholder `ZipFile` to an S3
@@ -77,7 +83,7 @@ Code:
 
 Do the same for all five Lambda functions.
 
-### 1c. Deploy the stack
+### 1d. Deploy the stack
 
 ```bash
 aws cloudformation deploy \
@@ -98,7 +104,7 @@ aws cloudformation describe-stacks \
   --region us-east-1
 ```
 
-Note down the `ApiBaseUrl` value — you will need it in Step 2.
+Note down the `ApiBaseUrl` value — you will need it in Step 4.
 
 ---
 
