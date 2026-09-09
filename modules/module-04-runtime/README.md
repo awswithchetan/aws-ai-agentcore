@@ -46,19 +46,50 @@ Open `aria-agent/agent.py` in VS Code and review the structure before deploying.
 
 ---
 
-## Step 2 — Set the Knowledge Base ID
+## Step 2 — Externalize Configuration to SSM Parameter Store
 
-Before deploying, set the Knowledge Base ID from Module 03 as an environment variable. The agent reads this at runtime:
+Aria loads all dynamic configuration from AWS SSM Parameter Store at container
+startup. This means you can change the model, Knowledge Base ID, or retrieval
+tuning without rebuilding or redeploying the container — a critical property
+for production rollouts.
+
+Parameters are stored under the `/aria/` prefix:
+
+| SSM Parameter             | Purpose                             | Default                          |
+|---------------------------|-------------------------------------|----------------------------------|
+| `/aria/region`            | AWS region                          | `us-east-1`                      |
+| `/aria/model_id`          | Bedrock model to use                | `us.anthropic.claude-sonnet-4-6` |
+| `/aria/knowledge_base_id` | Bedrock Knowledge Base ID           | _(required)_                     |
+| `/aria/kb_num_results`    | Number of KB chunks retrieved/query | `5`                              |
+
+### Create the SSM parameters (one-time setup per environment)
 
 ```bash
 export KNOWLEDGE_BASE_ID="<your-kb-id-from-module-03>"
+export AWS_REGION=us-east-1
+
+bash aria-agent/scripts/put_ssm_params.sh
 ```
 
-Or add it to a `.env` file in `aria-agent/`:
+To update a value later (e.g. upgrade the model) without redeploying:
 
+```bash
+MODEL_ID="us.anthropic.claude-sonnet-5-0" \
+KNOWLEDGE_BASE_ID="<your-kb-id>" \
+bash aria-agent/scripts/put_ssm_params.sh
 ```
-KNOWLEDGE_BASE_ID=kb-XXXXXXXXXX
-AWS_REGION=us-east-1
+
+Then restart the agent runtime to pick up the new value on the next cold start.
+
+### Local development (no SSM required)
+
+Set `SSM_ENABLED=false` and provide env vars directly:
+
+```bash
+export SSM_ENABLED=false
+export KNOWLEDGE_BASE_ID=kb-XXXXXXXXXX
+export AWS_REGION=us-east-1
+# MODEL_ID and KB_NUM_RESULTS have sensible defaults
 ```
 
 ---

@@ -21,6 +21,9 @@ env/
 .vscode/
 .idea/
 
+# Setup/tooling scripts — not needed inside the container
+scripts/
+
 # Git
 .git/
 .gitignore

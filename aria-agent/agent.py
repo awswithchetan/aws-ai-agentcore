@@ -7,24 +7,34 @@ on Amazon Bedrock AgentCore Runtime. It retrieves answers from the
 ShopSmart Knowledge Base rather than relying on a hardcoded system prompt.
 
 This agent evolves throughout the course — each module adds new capabilities.
+
+Configuration is loaded from SSM Parameter Store at startup (see config.py).
+No values are hardcoded — change model, KB, or tuning parameters via SSM
+without rebuilding or redeploying the container.
 """
 
-import os
+import logging
+
 import boto3
-from strands import Agent, tool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
+from strands import Agent, tool
 
-# ── Configuration ─────────────────────────────────────────────────────────────
+from config import cfg
 
-KNOWLEDGE_BASE_ID = os.environ.get("KNOWLEDGE_BASE_ID")
-REGION = os.environ.get("AWS_REGION", "us-east-1")
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+# ── Logging ───────────────────────────────────────────────────────────────────
 
-# ── Knowledge Base client ──────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+)
+logger = logging.getLogger(__name__)
+logger.info("Starting Aria with config: %s", cfg)
+
+# ── AWS clients ───────────────────────────────────────────────────────────────
 
 bedrock_agent_runtime = boto3.client(
     "bedrock-agent-runtime",
-    region_name=REGION
+    region_name=cfg.region,
 )
 
 # ── Tools ──────────────────────────────────────────────────────────────────────
@@ -42,17 +52,17 @@ def retrieve_from_knowledge_base(query: str) -> str:
     Returns:
         Relevant content from ShopSmart's knowledge base documents
     """
-    if not KNOWLEDGE_BASE_ID:
+    if not cfg.knowledge_base_id:
         return "Knowledge base not configured."
 
     response = bedrock_agent_runtime.retrieve(
-        knowledgeBaseId=KNOWLEDGE_BASE_ID,
+        knowledgeBaseId=cfg.knowledge_base_id,
         retrievalQuery={"text": query},
         retrievalConfiguration={
             "vectorSearchConfiguration": {
-                "numberOfResults": 5
+                "numberOfResults": cfg.kb_num_results,
             }
-        }
+        },
     )
 
     results = response.get("retrievalResults", [])
@@ -92,9 +102,9 @@ Your role is to help customers with their shopping experience. Be warm, helpful,
 # ── Agent ──────────────────────────────────────────────────────────────────────
 
 agent = Agent(
-    model=MODEL_ID,
+    model=cfg.model_id,
     system_prompt=SYSTEM_PROMPT,
-    tools=[retrieve_from_knowledge_base]
+    tools=[retrieve_from_knowledge_base],
 )
 
 # ── AgentCore Runtime Entrypoint ───────────────────────────────────────────────
