@@ -94,9 +94,15 @@ Response returned to Streamlit UI
    - **User pool name**: `shopsmart-users`
    - **Hosted authentication pages**: ✅ **Use the Cognito Hosted UI**
    - **Domain**: choose **Use a Cognito domain**, enter a unique prefix e.g. `shopsmart-auth-<your-account-id>`
-   - **App type**: **Public client**
+   - **App type**: **Single-page application (SPA)**
+
+     > SPA is the correct choice here. Streamlit uses the authorization code
+     > flow without a client secret — SPAs are public clients designed for
+     > exactly this. Cognito automatically enables PKCE for SPA clients.
+     > "Traditional web application" requires a client secret, which a
+     > browser-based app cannot securely store.
+
    - **App client name**: `shopsmart-streamlit`
-   - **Client secret**: **Don't generate a client secret** (public client)
    - **Allowed callback URLs**: `http://localhost:8501` (Streamlit local URL)
    - **Allowed sign-out URLs**: `http://localhost:8501`
    - **OAuth 2.0 grant types**: check **Authorization code grant**
