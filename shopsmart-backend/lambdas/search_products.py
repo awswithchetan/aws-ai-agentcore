@@ -8,7 +8,7 @@ import os
 import boto3
 from boto3.dynamodb.conditions import Attr
 
-dynamodb = boto3.resource("dynamodb", region_name=os.environ["AWS_REGION"])
+dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["PRODUCTS_TABLE"])
 
 

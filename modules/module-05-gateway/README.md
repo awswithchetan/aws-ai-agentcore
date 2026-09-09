@@ -79,7 +79,6 @@ aws cloudformation deploy \
   --stack-name shopsmart-backend \
   --parameter-overrides \
       Environment=dev \
-      AwsRegion=us-east-1 \
       LambdaCodeBucket=$BUCKET \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1

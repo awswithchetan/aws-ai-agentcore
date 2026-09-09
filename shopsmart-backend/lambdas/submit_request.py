@@ -9,7 +9,7 @@ import uuid
 import boto3
 from datetime import datetime, timezone
 
-dynamodb = boto3.resource("dynamodb", region_name=os.environ["AWS_REGION"])
+dynamodb = boto3.resource("dynamodb")
 orders_table = dynamodb.Table(os.environ["ORDERS_TABLE"])
 
 VALID_REQUEST_TYPES = {"return", "exchange", "complaint", "inquiry"}

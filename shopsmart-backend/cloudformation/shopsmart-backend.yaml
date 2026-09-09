@@ -12,11 +12,6 @@ Parameters:
     AllowedValues: [dev, staging, prod]
     Description: Deployment environment
 
-  AwsRegion:
-    Type: String
-    Default: us-east-1
-    Description: AWS region for resource clients inside Lambda functions
-
   LambdaCodeBucket:
     Type: String
     Description: S3 bucket containing Lambda deployment zip files
@@ -128,7 +123,6 @@ Resources:
         S3Key: !Sub "${LambdaCodePrefix}/list_orders.zip"
       Environment:
         Variables:
-          AWS_REGION: !Ref AwsRegion
           ORDERS_TABLE: !Ref OrdersTable
       Timeout: 30
       Tags:
@@ -149,7 +143,6 @@ Resources:
         S3Key: !Sub "${LambdaCodePrefix}/get_order.zip"
       Environment:
         Variables:
-          AWS_REGION: !Ref AwsRegion
           ORDERS_TABLE: !Ref OrdersTable
       Timeout: 30
       Tags:
@@ -170,7 +163,6 @@ Resources:
         S3Key: !Sub "${LambdaCodePrefix}/get_product.zip"
       Environment:
         Variables:
-          AWS_REGION: !Ref AwsRegion
           PRODUCTS_TABLE: !Ref ProductsTable
       Timeout: 30
       Tags:
@@ -191,7 +183,6 @@ Resources:
         S3Key: !Sub "${LambdaCodePrefix}/search_products.zip"
       Environment:
         Variables:
-          AWS_REGION: !Ref AwsRegion
           PRODUCTS_TABLE: !Ref ProductsTable
       Timeout: 30
       Tags:
@@ -212,7 +203,6 @@ Resources:
         S3Key: !Sub "${LambdaCodePrefix}/submit_request.zip"
       Environment:
         Variables:
-          AWS_REGION: !Ref AwsRegion
           ORDERS_TABLE: !Ref OrdersTable
       Timeout: 30
       Tags:
