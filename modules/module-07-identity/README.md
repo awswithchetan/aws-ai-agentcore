@@ -103,7 +103,26 @@ Response returned to Streamlit UI
 
 5. Click **Create user directory**
 
-6. Note down from the User Pool detail page:
+6. **Add a custom attribute** for the ShopSmart customer ID.
+
+   Cognito auto-generates `sub` as a UUID — it won't match `C001`/`C002`/`C003`
+   in DynamoDB. We use a custom attribute to carry the application customer ID
+   alongside the Cognito identity.
+
+   Go to your new user pool → **User pool properties** → **Custom attributes → Add custom attribute**:
+   - **Name**: `customer_id`  *(Cognito will prefix it — it becomes `custom:customer_id` in the JWT)*
+   - **Type**: String
+   - **Mutable**: ✅
+   - Click **Save changes**
+
+7. **Allow the app client to read and write the custom attribute.**
+
+   Go to **App clients → shopsmart-streamlit → Edit**:
+   - Under **Read attributes**: add `custom:customer_id`
+   - Under **Write attributes**: add `custom:customer_id`
+   - Click **Save changes**
+
+8. Note down from the User Pool detail page:
    - **User Pool ID** — shown at the top (e.g. `us-east-1_XXXXXXXXX`)
    - **App client ID** — under the **App clients** tab
    - **Cognito domain** — under **Branding → Domain**
@@ -162,24 +181,31 @@ echo "Cognito Domain: $COGNITO_DOMAIN"
 
 ## Step 2 — Create Test Users
 
-Create a user for each ShopSmart test customer. The **username** (sub) must
-match the `customerId` used in DynamoDB so Aria can look up orders by the
-JWT's `sub` claim.
+Create a user for each ShopSmart test customer. Users log in with their
+**email address**. The `custom:customer_id` attribute maps them to the correct
+DynamoDB records.
 
 ### Via AWS Console
 
-1. Go to your `shopsmart-users` User Pool → **Users → Create user**
-2. Create three users:
+1. Go to your user pool → **Users → Create user**
+2. Create three users with these values:
 
-| Username (sub) | Email | Name | Temporary password |
+| Email (username) | Name | custom:customer_id | Temporary password |
 |---|---|---|---|
-| `C001` | `alice@example.com` | `Alice Johnson` | `ShopSmart1!` |
-| `C002` | `bob@example.com` | `Bob Smith` | `ShopSmart1!` |
-| `C003` | `carol@example.com` | `Carol White` | `ShopSmart1!` |
+| `alice@example.com` | `Alice Johnson` | `C001` | `ShopSmart1!` |
+| `bob@example.com` | `Bob Smith` | `C002` | `ShopSmart1!` |
+| `carol@example.com` | `Carol White` | `C003` | `ShopSmart1!` |
 
-3. For each user:
-   - **Send an invitation**: unchecked (we'll set permanent passwords via CLI)
-   - After creating, select the user → **Actions → Reset password** → set a permanent password
+For each user:
+- **Invitation message**: Don't send (select **Don't send an invitation**)
+- **Email address**: as above
+- **Mark email address as verified**: ✅
+- **Name**: as above
+- **Temporary password**: set a custom password → `ShopSmart1!` and mark as permanent
+
+> The `custom:customer_id` attribute may not appear in the Create User form.
+> If it doesn't, create the user first, then open the user detail page →
+> **Edit** to add the attribute value.
 
 ### Via CLI (Optional)
 
@@ -187,31 +213,33 @@ JWT's `sub` claim.
 <summary>Create test users via CLI</summary>
 
 ```bash
-# Requires USER_POOL_ID to be set from Step 1
+export USER_POOL_ID=<your-user-pool-id>
+export AWS_REGION=us-east-1
 
 for USER in "C001|alice@example.com|Alice Johnson" \
             "C002|bob@example.com|Bob Smith" \
             "C003|carol@example.com|Carol White"; do
-  IFS='|' read -r USERNAME EMAIL NAME <<< "$USER"
+  IFS='|' read -r CUSTOMER_ID EMAIL NAME <<< "$USER"
 
   aws cognito-idp admin-create-user \
     --user-pool-id $USER_POOL_ID \
-    --username $USERNAME \
+    --username "$EMAIL" \
     --user-attributes \
         Name=email,Value=$EMAIL \
         Name=email_verified,Value=true \
         Name=name,Value="$NAME" \
+        Name="custom:customer_id",Value="$CUSTOMER_ID" \
     --message-action SUPPRESS \
     --region $AWS_REGION
 
   aws cognito-idp admin-set-user-password \
     --user-pool-id $USER_POOL_ID \
-    --username $USERNAME \
+    --username "$EMAIL" \
     --password "ShopSmart1!" \
     --permanent \
     --region $AWS_REGION
 
-  echo "Created user: $USERNAME ($NAME)"
+  echo "✓ Created $CUSTOMER_ID — $NAME ($EMAIL)"
 done
 ```
 
@@ -382,7 +410,7 @@ and returns a typed `CustomerIdentity` object:
 ```python
 @dataclass
 class CustomerIdentity:
-    customer_id: str    # JWT sub claim — matches customerId in DynamoDB
+    customer_id: str    # custom:customer_id claim — matches DynamoDB customerId (e.g. C001)
     name: str           # JWT name claim
     email: str          # JWT email claim
     raw_claims: dict    # full decoded claims for debugging
@@ -391,12 +419,14 @@ def extract_identity(context) -> CustomerIdentity:
     headers = getattr(context, "request_headers", {}) or {}
     auth = headers.get("Authorization") or headers.get("authorization", "")
     if not auth.startswith("Bearer "):
-        return CustomerIdentity(customer_id="anonymous", name="", email="", raw_claims={})
+        return ANONYMOUS
     token = auth.split(" ", 1)[1]
     # Decode without verification — Runtime already validated the signature
     claims = json.loads(base64.b64decode(token.split(".")[1] + "=="))
     return CustomerIdentity(
-        customer_id=claims.get("sub", "anonymous"),
+        # custom:customer_id is set to C001/C002/C003 at user creation
+        # Falls back to sub (Cognito UUID) if the attribute is missing
+        customer_id=claims.get("custom:customer_id") or claims.get("sub", "anonymous"),
         name=claims.get("name", ""),
         email=claims.get("email", ""),
         raw_claims=claims,

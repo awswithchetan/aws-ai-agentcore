@@ -8,12 +8,19 @@ before forwarding the header to agent code. By the time this code runs,
 the token is already verified — we only need to decode the payload.
 
 JWT claims used:
-  sub    — stable user identifier, matches customerId in DynamoDB (e.g. C001)
-  name   — customer's full name (e.g. "Alice Johnson")
-  email  — customer's email address
+  custom:customer_id  — set at user creation, matches customerId in DynamoDB (e.g. C001)
+  sub                 — Cognito's stable UUID identifier (used as fallback)
+  name                — customer's full name (e.g. "Alice Johnson")
+  email               — customer's email address
 
-The `sub` claim is used as actor_id for memory scoping so memories are
-correctly namespaced per customer across sessions.
+We use custom:customer_id (not sub) as the customer identifier because:
+  - Cognito auto-generates sub as a UUID — it doesn't match our DynamoDB IDs
+  - custom:customer_id is explicitly set to C001/C002/C003 at user creation
+  - This is a common production pattern when an IdP needs to carry an
+    application-specific identifier alongside the Cognito sub
+
+The custom:customer_id is also used as actor_id for memory scoping so
+memories are correctly namespaced per customer across sessions.
 """
 
 import base64
@@ -28,7 +35,7 @@ logger = logging.getLogger(__name__)
 class CustomerIdentity:
     """Verified customer identity extracted from a Cognito JWT."""
 
-    customer_id: str          # JWT sub — stable identifier, matches DynamoDB customerId
+    customer_id: str          # custom:customer_id claim — matches DynamoDB customerId (e.g. C001)
     name: str                 # JWT name claim — customer's full name
     email: str                # JWT email claim
     raw_claims: dict = field(default_factory=dict, repr=False)
@@ -103,7 +110,7 @@ def extract_identity(context) -> CustomerIdentity:
     if not claims:
         return ANONYMOUS
 
-    customer_id = claims.get("sub", "anonymous")
+    customer_id = claims.get("custom:customer_id") or claims.get("sub", "anonymous")
     name = claims.get("name", "")
     email = claims.get("email", "")
 
