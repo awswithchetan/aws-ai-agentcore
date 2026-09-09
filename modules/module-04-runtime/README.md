@@ -176,7 +176,9 @@ aws ecr get-login-password --region $AWS_REGION \
   | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
 # Build and push
-# --platform linux/arm64 is required — AgentCore Runtime microVM only supports arm64
+# AgentCore Runtime microVM only supports arm64. If your machine is amd64
+# (Intel/AMD), install QEMU once to enable cross-platform builds:
+#   docker run --privileged --rm tonistiigi/binfmt --install arm64
 cd aria-agent
 docker build --platform linux/arm64 -t aria-agent .
 docker tag aria-agent:latest $ECR_REPO:latest

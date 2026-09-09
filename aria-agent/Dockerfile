@@ -4,10 +4,7 @@
 # LangChain, CrewAI, or any other framework without changing this file.
 
 # ── Stage 1: dependency builder ───────────────────────────────────────────────
-# Target arm64 — required by AgentCore Runtime microVM compute type.
-# If you switch to the Instances compute type, remove the --platform flag
-# or use `docker buildx` to build a multi-platform manifest instead.
-FROM --platform=linux/arm64 python:3.11-slim AS builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
@@ -17,7 +14,7 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 
 # ── Stage 2: runtime image ────────────────────────────────────────────────────
-FROM --platform=linux/arm64 python:3.11-slim AS runtime
+FROM python:3.11-slim AS runtime
 
 # Non-root user for security best practice
 RUN useradd --create-home --shell /bin/bash aria
