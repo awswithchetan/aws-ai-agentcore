@@ -44,6 +44,7 @@ _DEFAULTS = {
     "knowledge_base_id": "",
     "kb_num_results": "5",
     "region": "us-east-1",
+    "api_base_url": "",
 }
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -116,6 +117,7 @@ class AgentConfig:
         self.model_id: str = _resolve("model_id", ssm)
         self.knowledge_base_id: str = _resolve("knowledge_base_id", ssm)
         self.kb_num_results: int = int(_resolve("kb_num_results", ssm))
+        self.api_base_url: str = _resolve("api_base_url", ssm).rstrip("/")
 
         self._validate()
 
@@ -131,6 +133,11 @@ class AgentConfig:
                 "Configuration warning: 'knowledge_base_id' is not set. "
                 "Knowledge base retrieval will be disabled."
             )
+        if not self.api_base_url:
+            logger.warning(
+                "Configuration warning: 'api_base_url' is not set. "
+                "Order and product tools will be disabled."
+            )
 
     def __repr__(self):
         return (
@@ -138,7 +145,8 @@ class AgentConfig:
             f"region={self.region!r}, "
             f"model_id={self.model_id!r}, "
             f"knowledge_base_id={'<set>' if self.knowledge_base_id else '<not set>'!r}, "
-            f"kb_num_results={self.kb_num_results}"
+            f"kb_num_results={self.kb_num_results}, "
+            f"api_base_url={'<set>' if self.api_base_url else '<not set>'!r}"
             f")"
         )
 

@@ -25,6 +25,7 @@ PREFIX="/aria"
 MODEL_ID="${MODEL_ID:-us.anthropic.claude-sonnet-4-6}"
 KNOWLEDGE_BASE_ID="${KNOWLEDGE_BASE_ID:?  ERROR: KNOWLEDGE_BASE_ID environment variable is required}"
 KB_NUM_RESULTS="${KB_NUM_RESULTS:-5}"
+API_BASE_URL="${API_BASE_URL:-}"
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,9 @@ put_param "region"            "$REGION"
 put_param "model_id"          "$MODEL_ID"
 put_param "knowledge_base_id" "$KNOWLEDGE_BASE_ID"
 put_param "kb_num_results"    "$KB_NUM_RESULTS"
+if [ -n "$API_BASE_URL" ]; then
+  put_param "api_base_url"    "$API_BASE_URL"
+fi
 
 echo ""
 echo "Done. To change a value without redeploying, re-run this script with"

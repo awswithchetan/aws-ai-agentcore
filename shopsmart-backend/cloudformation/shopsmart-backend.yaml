@@ -1,0 +1,419 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ShopSmart Backend — DynamoDB tables, Lambda functions, and API Gateway
+  for the Aria agent course. Deployed once and used from Module 05 onwards.
+
+# ── Parameters ────────────────────────────────────────────────────────────────
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+
+  AwsRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region for resource clients inside Lambda functions
+
+# ── Resources ─────────────────────────────────────────────────────────────────
+
+Resources:
+
+  # ── DynamoDB — Orders ───────────────────────────────────────────────────────
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "shopsmart-orders-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: orderId
+          AttributeType: S
+        - AttributeName: customerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: orderId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: customerId-index
+          KeySchema:
+            - AttributeName: customerId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── DynamoDB — Products ─────────────────────────────────────────────────────
+
+  ProductsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "shopsmart-products-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: productId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: productId
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ── IAM Role — Lambda execution ─────────────────────────────────────────────
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "ShopSmartLambdaRole-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt OrdersTable.Arn
+                  - !Sub "${OrdersTable.Arn}/index/*"
+                  - !GetAtt ProductsTable.Arn
+                  - !Sub "${ProductsTable.Arn}/index/*"
+
+  # ── Lambda — list_orders ────────────────────────────────────────────────────
+
+  ListOrdersFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "shopsmart-list-orders-${Environment}"
+      Runtime: python3.11
+      Handler: list_orders.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {"statusCode": 200, "body": "placeholder"}
+      Environment:
+        Variables:
+          AWS_REGION: !Ref AwsRegion
+          ORDERS_TABLE: !Ref OrdersTable
+      Timeout: 30
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+
+  # ── Lambda — get_order ──────────────────────────────────────────────────────
+
+  GetOrderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "shopsmart-get-order-${Environment}"
+      Runtime: python3.11
+      Handler: get_order.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {"statusCode": 200, "body": "placeholder"}
+      Environment:
+        Variables:
+          AWS_REGION: !Ref AwsRegion
+          ORDERS_TABLE: !Ref OrdersTable
+      Timeout: 30
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+
+  # ── Lambda — get_product ────────────────────────────────────────────────────
+
+  GetProductFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "shopsmart-get-product-${Environment}"
+      Runtime: python3.11
+      Handler: get_product.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {"statusCode": 200, "body": "placeholder"}
+      Environment:
+        Variables:
+          AWS_REGION: !Ref AwsRegion
+          PRODUCTS_TABLE: !Ref ProductsTable
+      Timeout: 30
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+
+  # ── Lambda — search_products ────────────────────────────────────────────────
+
+  SearchProductsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "shopsmart-search-products-${Environment}"
+      Runtime: python3.11
+      Handler: search_products.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {"statusCode": 200, "body": "placeholder"}
+      Environment:
+        Variables:
+          AWS_REGION: !Ref AwsRegion
+          PRODUCTS_TABLE: !Ref ProductsTable
+      Timeout: 30
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+
+  # ── Lambda — submit_request ─────────────────────────────────────────────────
+
+  SubmitRequestFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "shopsmart-submit-request-${Environment}"
+      Runtime: python3.11
+      Handler: submit_request.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {"statusCode": 200, "body": "placeholder"}
+      Environment:
+        Variables:
+          AWS_REGION: !Ref AwsRegion
+          ORDERS_TABLE: !Ref OrdersTable
+      Timeout: 30
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+
+  # ── API Gateway ─────────────────────────────────────────────────────────────
+
+  ShopSmartApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "shopsmart-api-${Environment}"
+      Description: ShopSmart backend API for Aria agent tools
+      EndpointConfiguration:
+        Types: [REGIONAL]
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+
+  # /orders resource
+  OrdersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ParentId: !GetAtt ShopSmartApi.RootResourceId
+      PathPart: orders
+
+  # /orders/{orderId} resource
+  OrderByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ParentId: !Ref OrdersResource
+      PathPart: "{orderId}"
+
+  # /products resource
+  ProductsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ParentId: !GetAtt ShopSmartApi.RootResourceId
+      PathPart: products
+
+  # /products/{productId} resource
+  ProductByIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ParentId: !Ref ProductsResource
+      PathPart: "{productId}"
+
+  # /requests resource
+  RequestsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ParentId: !GetAtt ShopSmartApi.RootResourceId
+      PathPart: requests
+
+  # GET /orders → list_orders
+  ListOrdersMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ResourceId: !Ref OrdersResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ListOrdersFunction.Arn}/invocations"
+
+  # GET /orders/{orderId} → get_order
+  GetOrderMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ResourceId: !Ref OrderByIdResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetOrderFunction.Arn}/invocations"
+
+  # GET /products → search_products
+  SearchProductsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ResourceId: !Ref ProductsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SearchProductsFunction.Arn}/invocations"
+
+  # GET /products/{productId} → get_product
+  GetProductMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ResourceId: !Ref ProductByIdResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetProductFunction.Arn}/invocations"
+
+  # POST /requests → submit_request
+  SubmitRequestMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      ResourceId: !Ref RequestsResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SubmitRequestFunction.Arn}/invocations"
+
+  # ── API Gateway deployment ──────────────────────────────────────────────────
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ListOrdersMethod
+      - GetOrderMethod
+      - SearchProductsMethod
+      - GetProductMethod
+      - SubmitRequestMethod
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref ShopSmartApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref Environment
+      Description: !Sub "ShopSmart API ${Environment} stage"
+
+  # ── Lambda permissions — allow API Gateway to invoke each function ──────────
+
+  ListOrdersPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ListOrdersFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ShopSmartApi}/*/*"
+
+  GetOrderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetOrderFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ShopSmartApi}/*/*"
+
+  SearchProductsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SearchProductsFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ShopSmartApi}/*/*"
+
+  GetProductPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetProductFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ShopSmartApi}/*/*"
+
+  SubmitRequestPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SubmitRequestFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ShopSmartApi}/*/*"
+
+# ── Outputs ───────────────────────────────────────────────────────────────────
+
+Outputs:
+
+  ApiBaseUrl:
+    Description: ShopSmart API base URL
+    Value: !Sub "https://${ShopSmartApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "ShopSmartApiBaseUrl-${Environment}"
+
+  OrdersTableName:
+    Description: DynamoDB orders table name
+    Value: !Ref OrdersTable
+    Export:
+      Name: !Sub "ShopSmartOrdersTable-${Environment}"
+
+  ProductsTableName:
+    Description: DynamoDB products table name
+    Value: !Ref ProductsTable
+    Export:
+      Name: !Sub "ShopSmartProductsTable-${Environment}"
