@@ -105,7 +105,8 @@ If this returns your account details, you're good to go — proceed to **Configu
 
 ---
 
-### Create a Dedicated IAM User (Optional — Best Practice)
+<details>
+<summary>Create a Dedicated IAM User (Optional — Best Practice)</summary>
 
 If you want a dedicated user with scoped permissions for this course rather than using your admin account:
 
@@ -125,6 +126,8 @@ If you want a dedicated user with scoped permissions for this course rather than
 5. Note down **Access Key ID** and **Secret Access Key**
 
 > **Note**: For a production environment you would use more granular permissions. For this course, these policies keep setup simple.
+
+</details>
 
 ### Configure AWS CLI
 
@@ -172,7 +175,8 @@ Access to Amazon Bedrock foundation models is **enabled by default** — no manu
 
 > This is a one-time step per AWS account. If your account has used Claude before, you can skip this entirely.
 
-### IAM Permissions Required
+<details>
+<summary>IAM permissions required for model access</summary>
 
 Your IAM user must have AWS Marketplace permissions for automatic model access to work. These are included if you attached `AmazonBedrockFullAccess` in the previous step. Verify with:
 
@@ -184,6 +188,8 @@ aws bedrock list-foundation-models \
 ```
 
 If this command returns results without error, you're good to go.
+
+</details>
 
 ---
 
@@ -251,10 +257,15 @@ docker --version
 docker ps
 ```
 
-> **WSL note**: If `sudo systemctl start docker` fails in WSL, use this instead:
-> ```bash
-> sudo service docker start
-> ```
+<details>
+<summary>WSL note</summary>
+
+If `sudo systemctl start docker` fails in WSL, use this instead:
+```bash
+sudo service docker start
+```
+
+</details>
 
 ---
 
@@ -298,17 +309,15 @@ Install these from the Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`):
 
 ---
 
-## 8. Python Virtual Environment & Dependencies
+## 7. Python Virtual Environment & Dependencies
 
-A virtual environment is an isolated folder that keeps this project's Python packages separate from everything else on your machine. Think of it as a dedicated Python workspace just for this course — no conflicts, no clutter.
-
-You create it once and activate it every time you work on this project.
+A virtual environment keeps this project's Python packages isolated from the rest of your system. Create it once and activate it every time you work on the project.
 
 ```bash
 # Navigate to the repo root
 cd /home/chetan/aws-ai-agentcore   # adjust path if different
 
-# Create the virtual environment (creates a .venv folder)
+# Create the virtual environment
 python3 -m venv .venv
 
 # Activate it — you'll see (.venv) appear in your terminal prompt
@@ -327,13 +336,13 @@ pip install -r requirements.txt
 
 ---
 
-## 10. Verify AgentCore CLI
+## 8. Verify AgentCore CLI
 
 ```bash
 agentcore --version
 ```
 
-If this returns a version number, the CLI is installed and working. That's all you need to verify here — you will create your first real harness in Module 02.
+If this returns a version number, the CLI is installed and working. You will create your first harness in Module 02.
 
 ---
 

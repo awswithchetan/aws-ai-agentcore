@@ -25,9 +25,8 @@ modules/module-05-gateway/
 └── agent.py                     # Aria with order and product tools
 ```
 
----
-
-## How This Differs from Module 04
+<details>
+<summary>How This Differs from Module 04</summary>
 
 | | Module 04 — Runtime | Module 05 — Gateway |
 |---|---|---|
@@ -37,14 +36,13 @@ modules/module-05-gateway/
 | Return requests | Not possible | Submitted via API |
 | Customer identity | N/A | Customer provides their ID |
 
+</details>
+
 ---
 
 ## Step 1 — Deploy the ShopSmart Backend
 
 ### 1a. Create an S3 bucket for Lambda deployment packages
-
-You need an S3 bucket to upload the Lambda zip files before CloudFormation can
-deploy them. Create it once — it will be reused for all future deployments.
 
 ```bash
 export AWS_REGION=us-east-1
@@ -54,15 +52,20 @@ export BUCKET=shopsmart-lambda-$AWS_ACCOUNT_ID
 aws s3 mb s3://$BUCKET --region $AWS_REGION
 ```
 
-> The bucket name includes your account ID to make it globally unique.
-> S3 bucket names must be unique across all AWS accounts worldwide.
+<details>
+<summary>Why a separate S3 bucket for Lambda packages?</summary>
 
-### 1b. Package and upload Lambda code to S3
+CloudFormation needs the Lambda zip files to exist in S3 before it can deploy
+the stack. The bucket name includes your account ID to make it globally unique —
+S3 bucket names must be unique across all AWS accounts worldwide.
 
-> The environment variables from step 1a (`AWS_REGION`, `AWS_ACCOUNT_ID`, `BUCKET`) must still be set in the same terminal session.
+</details>
+
+### 1b. Package and upload Lambda code
+
+> The environment variables from step 1a must still be set in the same terminal session.
 
 ```bash
-# Package and upload Lambda functions
 cd shopsmart-backend/lambdas
 for f in list_orders get_order get_product search_products submit_request; do
   zip ${f}.zip ${f}.py
@@ -84,7 +87,7 @@ aws cloudformation deploy \
   --region us-east-1
 ```
 
-Wait for the stack to reach `CREATE_COMPLETE`. Note the API URL from the outputs:
+Wait for `CREATE_COMPLETE`. Then note the API URL:
 
 ```bash
 aws cloudformation describe-stacks \
@@ -100,15 +103,13 @@ Note down the `ApiBaseUrl` value — you will need it in Step 4.
 
 ## Step 2 — Seed the Database
 
-Run the seed script to populate DynamoDB with sample orders and products:
-
 ```bash
 export AWS_REGION=us-east-1
 export ENVIRONMENT=dev
 python shopsmart-backend/seed_data.py
 ```
 
-You should see:
+Expected output:
 ```
 ✅ All done! Tables are ready for use.
 
@@ -120,8 +121,7 @@ Test customers:
 
 ### Verify via AWS Console
 
-Go to **DynamoDB → Tables → shopsmart-orders-dev → Explore items** and confirm
-you can see the seeded orders.
+Go to **DynamoDB → Tables → shopsmart-orders-dev → Explore items** and confirm the seeded orders are present.
 
 ---
 
@@ -152,8 +152,6 @@ curl "$API_URL/products/P001"
 
 ## Step 4 — Add api_base_url to SSM
 
-Add the API URL to SSM so the agent can load it at startup:
-
 ### Via AWS Console
 
 1. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
@@ -175,15 +173,25 @@ bash aria-agent/scripts/put_ssm_params.sh
 
 ## Step 5 — Update the Agent
 
-Copy the Module 05 agent to `aria-agent/`:
-
 ```bash
 cp modules/module-05-gateway/agent.py aria-agent/agent.py
 ```
 
-Review the new tools in `agent.py` — notice how each tool calls the ShopSmart
-API through a simple `requests` call. In a later module these calls will go
-through AgentCore Gateway which adds authentication and access controls.
+<details>
+<summary>What changed in agent.py</summary>
+
+The Module 05 agent adds five new tools that call the ShopSmart API:
+- `list_customer_orders` — fetches all orders for a customer ID
+- `get_order_details` — fetches a specific order
+- `get_product_details` — fetches a specific product
+- `search_products` — searches the product catalog by keyword or category
+- `submit_support_request` — submits a return, exchange, complaint, or inquiry
+
+Each tool makes a plain HTTPS call to the API Gateway endpoint via `requests`.
+In a later module these calls will go through AgentCore Gateway which adds
+authentication and access controls.
+
+</details>
 
 ---
 
@@ -199,6 +207,7 @@ aws ecr get-login-password --region $AWS_REGION \
     $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
 cd aria-agent
+cp ../modules/module-05-gateway/Dockerfile .
 docker build --platform linux/arm64 -t aria-agent .
 docker tag aria-agent:latest $ECR_REPO:latest
 docker push $ECR_REPO:latest
@@ -208,22 +217,15 @@ aws bedrock-agentcore control update-agent-runtime \
   --agent-runtime-id <YOUR_RUNTIME_ID> \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
   --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaHarnessExecutionRole" \
-  --network-configuration '{"networkMode":"PUBLIC"}' \
   --description "Module 05 — Gateway tools" \
   --region us-east-1
 ```
 
----
-
-## Step 7 — Add API Gateway permissions to the execution role
-
-The agent container needs to call the ShopSmart API Gateway. Since the API is
-public in this module, no additional permissions are needed — `requests` makes
-a plain HTTPS call. This changes in Module 07 when we add authentication.
+Wait for the runtime status to return to **Ready** before testing.
 
 ---
 
-## Step 8 — Test
+## Step 7 — Test
 
 Try these prompts in the console Test tab or Streamlit UI:
 
@@ -236,13 +238,16 @@ Try these prompts in the console Test tab or Streamlit UI:
 
 ---
 
-## What You Learned
+<details>
+<summary>What You Learned</summary>
 
 - How to deploy a serverless backend with CloudFormation
 - How to seed DynamoDB with realistic test data
 - How to add HTTP-based tools to a Strands agent
 - How Aria can combine Knowledge Base retrieval and live API calls
 - Why externalizing the API URL to SSM matters (no redeploy to change environments)
+
+</details>
 
 ---
 

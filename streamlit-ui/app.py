@@ -69,6 +69,9 @@ if "session_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+if "customer_id" not in st.session_state:
+    st.session_state.customer_id = ""
+
 # ── Header ────────────────────────────────────────────────────────────────────
 
 st.title("🛍️ ShopSmart Support")
@@ -93,10 +96,17 @@ def invoke_aria(prompt: str) -> str:
     """Invoke Aria via Runtime or Harness depending on configuration."""
 
     if MODE == "runtime":
+        payload = {"prompt": prompt}
+        # Include customer_id if set — used by Module 06 (Memory) to scope
+        # memory to the correct customer. In Module 07 (Identity) this will
+        # come from a verified JWT token instead.
+        if st.session_state.customer_id:
+            payload["customer_id"] = st.session_state.customer_id
+
         response = client.invoke_agent_runtime(
             agentRuntimeArn=RUNTIME_ARN,
             runtimeSessionId=st.session_state.session_id,
-            payload=json.dumps({"prompt": prompt}),
+            payload=json.dumps(payload),
         )
         result = json.loads(response["response"].read())
         return result.get("result", "Sorry, I could not process your request.")
@@ -144,6 +154,25 @@ with st.sidebar:
     st.caption(f"Mode: `{MODE}`")
     st.caption(f"Session ID: `{st.session_state.session_id[:8]}...`")
     st.caption(f"Messages: {len(st.session_state.messages)}")
+    st.divider()
+
+    # Customer ID — used by Module 06 (Memory) to scope memory per customer.
+    # In Module 07 (Identity) this will be replaced by Cognito login.
+    customer_id_input = st.text_input(
+        "Customer ID",
+        value=st.session_state.customer_id,
+        placeholder="e.g. C001",
+        help="Enter your customer ID to enable personalised memory. Leave blank for anonymous.",
+    )
+    if customer_id_input != st.session_state.customer_id:
+        st.session_state.customer_id = customer_id_input
+        st.rerun()
+
+    if st.session_state.customer_id:
+        st.success(f"Logged in as `{st.session_state.customer_id}`")
+    else:
+        st.info("No customer ID set — memory scoped to anonymous.")
+
     st.divider()
 
     if st.button("🔄 New Session", use_container_width=True):

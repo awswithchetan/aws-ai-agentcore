@@ -45,6 +45,8 @@ _DEFAULTS = {
     "kb_num_results": "5",
     "region": "us-east-1",
     "api_base_url": "",
+    "memory_id": "",
+    "memory_strategy_id": "",
 }
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -118,6 +120,8 @@ class AgentConfig:
         self.knowledge_base_id: str = _resolve("knowledge_base_id", ssm)
         self.kb_num_results: int = int(_resolve("kb_num_results", ssm))
         self.api_base_url: str = _resolve("api_base_url", ssm).rstrip("/")
+        self.memory_id: str = _resolve("memory_id", ssm)
+        self.memory_strategy_id: str = _resolve("memory_strategy_id", ssm)
 
         self._validate()
 
@@ -138,6 +142,16 @@ class AgentConfig:
                 "Configuration warning: 'api_base_url' is not set. "
                 "Order and product tools will be disabled."
             )
+        if not self.memory_id:
+            logger.warning(
+                "Configuration warning: 'memory_id' is not set. "
+                "Persistent memory will be disabled."
+            )
+        if not self.memory_strategy_id:
+            logger.warning(
+                "Configuration warning: 'memory_strategy_id' is not set. "
+                "Persistent memory will be disabled."
+            )
 
     def __repr__(self):
         return (
@@ -146,7 +160,9 @@ class AgentConfig:
             f"model_id={self.model_id!r}, "
             f"knowledge_base_id={'<set>' if self.knowledge_base_id else '<not set>'!r}, "
             f"kb_num_results={self.kb_num_results}, "
-            f"api_base_url={'<set>' if self.api_base_url else '<not set>'!r}"
+            f"api_base_url={'<set>' if self.api_base_url else '<not set>'!r}, "
+            f"memory_id={'<set>' if self.memory_id else '<not set>'!r}, "
+            f"memory_strategy_id={'<set>' if self.memory_strategy_id else '<not set>'!r}"
             f")"
         )
 

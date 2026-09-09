@@ -1,24 +1,23 @@
 """
 Aria — ShopSmart AI Customer Support Agent
-Module 05: Gateway — Connecting Real Tools
+Module 06: Memory — Persistent Customer Memory
 
-Adds order and product tools that call the ShopSmart backend API
-through AgentCore Gateway. Aria can now look up real orders and products
-instead of only answering FAQ questions.
+Adds AgentCore Memory so Aria remembers customers across sessions.
+Strands automatically writes conversation turns to memory and retrieves
+relevant long-term facts before each response.
 
-New capabilities vs Module 04:
-  - list_customer_orders  — list all orders for a customer
-  - get_order_details     — get full details of a specific order
-  - get_product_details   — get details of a specific product
-  - search_products       — search the product catalog by keyword or category
-  - submit_support_request — initiate a return, exchange, or support ticket
+New capabilities vs Module 05:
+  - Remembers customer preferences and past issues across sessions
+  - Retrieves relevant facts before responding (e.g. preferred shipping)
+  - Stores session summaries for future reference
 
 Configuration (SSM parameters — same prefix /aria/):
   /aria/model_id          — Bedrock model ID
   /aria/knowledge_base_id — Bedrock Knowledge Base ID
   /aria/kb_num_results    — Number of KB chunks per query
   /aria/region            — AWS region
-  /aria/api_base_url      — ShopSmart API base URL (from CloudFormation output)
+  /aria/api_base_url      — ShopSmart API base URL
+  /aria/memory_id         — AgentCore Memory resource ID
 """
 
 import logging
@@ -30,6 +29,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands import Agent, tool
 
 from config import cfg
+from memory.session import get_memory_session_manager
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -273,9 +273,15 @@ Your role is to help customers with their shopping experience. Be warm, helpful,
 - Keep responses concise and friendly
 
 ## Identifying the customer:
-- You do not have automatic access to who the customer is
-- If a customer asks about their orders, politely ask for their customer ID (e.g. C001)
+- The current customer's ID is injected into your system prompt when they set it in the UI
+- If a customer ID is present, use it directly with list_customer_orders — do not ask for it again
+- If no customer ID is provided (anonymous session), politely ask for their customer ID (e.g. C001)
 - If a customer provides an order ID directly (e.g. ORD-1001), use get_order_details directly
+
+## Using memory:
+- You may have relevant memories about this customer from past conversations
+- If memories are available in your context, use them to personalise responses
+- For example: greet returning customers by name, recall their preferences
 
 ## What you can help with:
 - Order status, tracking, and history
@@ -287,18 +293,15 @@ Your role is to help customers with their shopping experience. Be warm, helpful,
 
 # ── Agent ──────────────────────────────────────────────────────────────────────
 
-agent = Agent(
-    model=cfg.model_id,
-    system_prompt=SYSTEM_PROMPT,
-    tools=[
-        retrieve_from_knowledge_base,
-        list_customer_orders,
-        get_order_details,
-        get_product_details,
-        search_products,
-        submit_support_request,
-    ],
-)
+# Tools list — shared across invocations (stateless)
+TOOLS = [
+    retrieve_from_knowledge_base,
+    list_customer_orders,
+    get_order_details,
+    get_product_details,
+    search_products,
+    submit_support_request,
+]
 
 # ── AgentCore Runtime Entrypoint ───────────────────────────────────────────────
 
@@ -309,8 +312,11 @@ def agent_invocation(payload: dict, context) -> dict:
     """
     AgentCore Runtime entrypoint. Called on every agent invocation.
 
+    The agent is created fresh per invocation so memory is scoped correctly
+    to the customer (actor_id) and session (session_id).
+
     Args:
-        payload: Contains the user's message under the "prompt" key
+        payload: Contains "prompt" and optionally "customer_id"
         context: AgentCore context (session_id, etc.)
 
     Returns:
@@ -320,6 +326,29 @@ def agent_invocation(payload: dict, context) -> dict:
 
     if not isinstance(user_message, str) or not user_message.strip():
         return {"error": "Invalid input: 'prompt' must be a non-empty string"}
+
+    # customer_id is provided by the customer for now.
+    # In Module 07 (Identity) this will come from the verified JWT token.
+    customer_id = payload.get("customer_id", "anonymous")
+    session_id = getattr(context, "session_id", str(payload.get("session_id", "default")))
+
+    # Inject customer identity into the system prompt so Aria knows who she
+    # is talking to. In Module 07 (Identity) this will come from the verified
+    # JWT token instead of the payload.
+    if customer_id and customer_id != "anonymous":
+        system_prompt = SYSTEM_PROMPT + f"\n\n## Current customer\nYou are speaking with customer ID: {customer_id}. Use any memories you have about this customer to personalise your response. Address them by name if you know it from memory."
+    else:
+        system_prompt = SYSTEM_PROMPT
+
+    agent = Agent(
+        model=cfg.model_id,
+        system_prompt=system_prompt,
+        tools=TOOLS,
+        session_manager=get_memory_session_manager(
+            session_id=session_id,
+            actor_id=customer_id,
+        ),
+    )
 
     result = agent(user_message)
 

@@ -85,7 +85,15 @@ rm trust-policy.json
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Harnesses**
 2. Click **Create harness**
-3. You will see two options — choose **Advanced create harness** for this module
+3. Choose **Advanced create harness**
+
+   <details>
+   <summary>Quick create vs Advanced create</summary>
+
+   - **Quick create** — minimal setup, AWS picks sensible defaults for everything. Good for a quick test but gives you no control.
+   - **Advanced create** — lets you configure model, system prompt, execution role, memory, tools, identity, environment, and more. We use this throughout the course.
+
+   </details>
 
 4. Configure:
    - **Harness name**: `aria-harness`
@@ -93,14 +101,10 @@ rm trust-policy.json
    - **System prompt**: paste the system prompt from the section below
    - **Execution role**: select `AriaHarnessExecutionRole`
 
-5. Leave all other settings as default for now
+5. Leave all other settings as default
 6. Click **Create harness**
 7. Wait until status shows **READY** (takes ~1 minute)
 8. Note down the **Harness ARN**
-
-> **Quick create vs Advanced create:**
-> - **Quick create** — minimal setup, AWS picks sensible defaults for everything. Good for a quick test but gives you no control.
-> - **Advanced create** — lets you configure model, system prompt, execution role, memory, tools, identity, environment, and more. We use this throughout the course.
 
 ### Via CLI (Optional)
 
@@ -174,7 +178,6 @@ Before connecting the Streamlit UI, test Aria directly in the console:
 2. Select your `aria` harness
 3. Click the **Test** tab
 4. Type a message: `Hi, what is your return policy?`
-5. Aria should respond with the return policy from the system prompt
 
 Try a few more:
 - `How long does standard shipping take?`
@@ -185,10 +188,7 @@ Try a few more:
 
 ## Step 4 — Run the Streamlit Chat UI
 
-> **Note**: The repo also includes [`invoke_aria.py`](invoke_aria.py) — a simple terminal-based script if you want to invoke Aria directly via the boto3 SDK without the UI.
-
 ```bash
-# Set your Harness ARN as an environment variable
 # Use the base harness ARN — NOT the endpoint ARN
 # Correct:   arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria-XXXXXXXX
 # Incorrect: arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria-XXXXXXXX/harness-endpoint/DEFAULT
@@ -196,15 +196,17 @@ Try a few more:
 export ARIA_HARNESS_ARN="arn:aws:bedrock-agentcore:us-east-1:<YOUR_ACCOUNT_ID>:harness/aria-harness-XXXXXXXX"
 export AWS_REGION="us-east-1"
 
-# Run the UI
 streamlit run streamlit-ui/app.py
 ```
 
 Open your browser at `http://localhost:8501` and chat with Aria.
 
+> The repo also includes [`invoke_aria.py`](invoke_aria.py) — a terminal-based script to invoke Aria directly via boto3 without the UI.
+
 ---
 
-## What You Learned
+<details>
+<summary>What You Learned</summary>
 
 - What the AgentCore Harness is and how it differs from writing your own agent loop
 - How to create an IAM execution role for the Harness
@@ -212,6 +214,8 @@ Open your browser at `http://localhost:8501` and chat with Aria.
 - How to write an effective system prompt
 - How to invoke the Harness via Python SDK (streaming responses)
 - How to connect a Streamlit chat UI to the Harness
+
+</details>
 
 ---
 

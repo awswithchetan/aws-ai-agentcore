@@ -92,9 +92,13 @@ aws s3 ls s3://shopsmart-knowledge-base-<your-account-id>/
 2. Click **Create knowledge base**
 3. Select **Bedrock Managed KB** and click **Next**
 
-   > **Bedrock Managed KB** vs **Self-Managed KB**:
-   > - **Bedrock Managed KB** — AWS fully manages the vector store. Simpler, no infrastructure to manage. ✅ Use this for the course.
-   > - **Self-Managed KB** — You bring your own vector database. More control, more setup.
+   <details>
+   <summary>Bedrock Managed KB vs Self-Managed KB</summary>
+
+   - **Bedrock Managed KB** — AWS fully manages the vector store. Simpler, no infrastructure to manage. ✅ Use this for the course.
+   - **Self-Managed KB** — You bring your own vector database. More control, more setup.
+
+   </details>
 
 4. **Knowledge base name**: `shopsmart-kb`
 
@@ -102,7 +106,7 @@ aws s3 ls s3://shopsmart-knowledge-base-<your-account-id>/
    - **Embedding model**: select **Managed embeddings model** (recommended) — AWS manages the embedding model automatically
    - **IAM Permissions**: leave the auto-populated service role name as default — AWS creates the role for you
 
-6. **Data Source** section (below Additional configurations):
+6. **Data Source** section:
    - **Data source name**: `shopsmart-docs`
    - **Data source type**: Amazon S3
    - **S3 URI**: `s3://shopsmart-knowledge-base-<your-account-id>/`
@@ -111,25 +115,21 @@ aws s3 ls s3://shopsmart-knowledge-base-<your-account-id>/
 
 > Creation takes **3–5 minutes**. Wait until status shows **Available** before proceeding.
 
-8. Note down the **Knowledge Base ID** — you will need it in Module 04 when attaching to Aria's Runtime agent.
+8. Note down the **Knowledge Base ID** — you will need it in Module 04.
 
 ---
 
 ## Step 4 — Verify the Sync
 
-After creation, the Knowledge Base automatically syncs the data source. You can verify it completed successfully:
+After creation, the Knowledge Base automatically syncs the data source:
 
 1. Open `shopsmart-kb` in the Bedrock console
 2. Under **Data sources**, check that `shopsmart-docs` shows sync status as **Available**
-3. If for any reason the sync failed or you update documents in S3 later, you can manually trigger a re-sync by selecting the data source and clicking **Sync**
+3. If the sync failed or you update documents in S3 later, select the data source and click **Sync** to re-trigger
 
 ---
 
 ## Step 5 — Test the Knowledge Base
-
-Test that the Knowledge Base retrieves content correctly before connecting it to Aria.
-
-### Via AWS Console
 
 1. In the Knowledge Base detail page, click **Test knowledge base**
 2. Try these test queries:
@@ -137,8 +137,6 @@ Test that the Knowledge Base retrieves content correctly before connecting it to
    - `How much does express shipping cost?`
    - `What payment methods are accepted?`
 3. You should see relevant document chunks returned with source attribution
-
-The retrieved chunks are what Aria will use to formulate her answers.
 
 ---
 
@@ -152,11 +150,10 @@ S3 Bucket:          s3://shopsmart-knowledge-base-<your-account-id>/
 Region:             us-east-1
 ```
 
-You can find the Knowledge Base ID on the knowledge base detail page in the Bedrock console.
-
 ---
 
-## How the Knowledge Base Integrates with Aria
+<details>
+<summary>How the Knowledge Base integrates with Aria</summary>
 
 When a customer asks Aria a question:
 
@@ -175,14 +172,19 @@ Aria uses retrieved context to formulate a precise, accurate answer
 
 Aria never makes up policy details — she retrieves them from the official documents.
 
+</details>
+
 ---
 
-## What You Learned
+<details>
+<summary>What You Learned</summary>
 
 - How to create an S3 bucket as a document store
 - How to create a Bedrock Knowledge Base with OpenSearch Serverless vector store
 - How to sync documents and test retrieval
 - How retrieval-augmented generation (RAG) works in the context of an agent
+
+</details>
 
 ---
 

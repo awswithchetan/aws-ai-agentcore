@@ -26,6 +26,8 @@ MODEL_ID="${MODEL_ID:-us.anthropic.claude-sonnet-4-6}"
 KNOWLEDGE_BASE_ID="${KNOWLEDGE_BASE_ID:?  ERROR: KNOWLEDGE_BASE_ID environment variable is required}"
 KB_NUM_RESULTS="${KB_NUM_RESULTS:-5}"
 API_BASE_URL="${API_BASE_URL:-}"
+MEMORY_ID="${MEMORY_ID:-}"
+MEMORY_STRATEGY_ID="${MEMORY_STRATEGY_ID:-}"
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,12 @@ put_param "knowledge_base_id" "$KNOWLEDGE_BASE_ID"
 put_param "kb_num_results"    "$KB_NUM_RESULTS"
 if [ -n "$API_BASE_URL" ]; then
   put_param "api_base_url"    "$API_BASE_URL"
+fi
+if [ -n "$MEMORY_ID" ]; then
+  put_param "memory_id"       "$MEMORY_ID"
+fi
+if [ -n "$MEMORY_STRATEGY_ID" ]; then
+  put_param "memory_strategy_id" "$MEMORY_STRATEGY_ID"
 fi
 
 echo ""
