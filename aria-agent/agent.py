@@ -135,7 +135,17 @@ def agent_invocation(payload: dict, context) -> dict:
 
     result = agent(user_message)
 
-    return {"result": str(result.message)}
+    # result.message is a Strands message dict:
+    # {'role': 'assistant', 'content': [{'text': '...'}, ...]}
+    # Extract the text from the first text content block.
+    message = result.message
+    if isinstance(message, dict):
+        for block in message.get("content", []):
+            if isinstance(block, dict) and "text" in block:
+                return {"result": block["text"]}
+
+    # Fallback — shouldn't normally be reached
+    return {"result": str(message)}
 
 
 if __name__ == "__main__":
