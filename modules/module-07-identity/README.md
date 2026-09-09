@@ -106,7 +106,7 @@ Response returned to Streamlit UI
 6. Note down from the User Pool detail page:
    - **User Pool ID** — shown at the top (e.g. `us-east-1_XXXXXXXXX`)
    - **App client ID** — under the **App clients** tab
-   - **Cognito domain** — under **App integration** tab → Domain
+   - **Cognito domain** — under **Branding → Domain**
      (e.g. `https://shopsmart-streamlit-jvklra.auth.us-east-1.amazoncognito.com`)
 
 ### Via CLI (Optional)
