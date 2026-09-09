@@ -55,28 +55,33 @@ def retrieve_from_knowledge_base(query: str) -> str:
     if not cfg.knowledge_base_id:
         return "Knowledge base not configured."
 
-    response = bedrock_agent_runtime.retrieve(
-        knowledgeBaseId=cfg.knowledge_base_id,
-        retrievalQuery={"text": query},
-        retrievalConfiguration={
-            "vectorSearchConfiguration": {
-                "numberOfResults": cfg.kb_num_results,
-            }
-        },
-    )
+    try:
+        response = bedrock_agent_runtime.retrieve(
+            knowledgeBaseId=cfg.knowledge_base_id,
+            retrievalQuery={"text": query},
+            retrievalConfiguration={
+                "vectorSearchConfiguration": {
+                    "numberOfResults": cfg.kb_num_results,
+                }
+            },
+        )
 
-    results = response.get("retrievalResults", [])
-    if not results:
-        return "No relevant information found in the knowledge base."
+        results = response.get("retrievalResults", [])
+        if not results:
+            return "No relevant information found in the knowledge base."
 
-    # Combine retrieved chunks into a single context string
-    context = "\n\n".join([
-        result["content"]["text"]
-        for result in results
-        if result.get("content", {}).get("text")
-    ])
+        # Combine retrieved chunks into a single context string
+        context = "\n\n".join([
+            result["content"]["text"]
+            for result in results
+            if result.get("content", {}).get("text")
+        ])
 
-    return context
+        return context
+
+    except Exception as e:
+        logger.error("Knowledge base retrieval failed: %s", e, exc_info=True)
+        return "Knowledge base retrieval is currently unavailable."
 
 
 # ── System Prompt ──────────────────────────────────────────────────────────────
