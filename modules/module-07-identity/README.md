@@ -90,7 +90,12 @@ Response returned to Streamlit UI
 
 4. **Configure options**:
    - **Sign-in identifiers**: check **Email**
-   - **Self-registration**: ✅ enabled
+   - **Self-registration**: ☐ disabled
+
+     > We create the three test users manually in Step 2 to match the seeded
+     > DynamoDB data. Enabling self-registration would let anyone sign up, but
+     > new accounts won't have orders in the database.
+
    - **Required attributes for sign-up**: open the dropdown and add **name**
      (Aria uses this to greet customers — it must be collected at sign-up)
    - **Return URL**: `http://localhost:8501`
