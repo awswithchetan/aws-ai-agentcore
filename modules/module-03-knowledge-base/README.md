@@ -88,42 +88,40 @@ aws s3 ls s3://shopsmart-knowledge-base-<your-account-id>/
 
 ### Via AWS Console
 
-1. Go to **AWS Console → Amazon Bedrock → Knowledge bases → Create knowledge base**
-2. **Knowledge base details**:
-   - **Name**: `shopsmart-kb`
-   - **Description**: ShopSmart customer support knowledge base
-   - **IAM role**: Create and use a new service role (let AWS create it automatically)
-3. Click **Next**
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Build → Built-in Tools → Knowledge Bases**
+2. Click **Create knowledge base**
+3. Select **Bedrock Managed KB** and click **Next**
 
-4. **Set up data source**:
+   > **Bedrock Managed KB** vs **Self-Managed KB**:
+   > - **Bedrock Managed KB** — AWS fully manages the vector store. Simpler, no infrastructure to manage. ✅ Use this for the course.
+   > - **Self-Managed KB** — You bring your own vector database. More control, more setup.
+
+4. **Knowledge base name**: `shopsmart-kb`
+
+5. Expand **Additional configurations**:
+   - **Embedding model**: select **Managed embeddings model** (recommended) — AWS manages the embedding model automatically
+   - **IAM Permissions**: leave the auto-populated service role name as default — AWS creates the role for you
+
+6. **Data Source** section (below Additional configurations):
    - **Data source name**: `shopsmart-docs`
-   - **Data source**: Amazon S3
+   - **Data source type**: Amazon S3
    - **S3 URI**: `s3://shopsmart-knowledge-base-<your-account-id>/`
-5. Click **Next**
 
-6. **Configure vector store**:
-   - **Embeddings model**: Titan Text Embeddings V2
-   - **Vector store**: Amazon OpenSearch Serverless (Quick create — AWS creates it automatically)
-7. Click **Next**
-
-8. Review and click **Create knowledge base**
+7. Click **Create knowledge base**
 
 > Creation takes **3–5 minutes**. Wait until status shows **Available** before proceeding.
 
-9. Note down the **Knowledge Base ID** — you will need it in Module 04 when attaching to Aria's Harness and Runtime.
+8. Note down the **Knowledge Base ID** — you will need it in Module 04 when attaching to Aria's Runtime agent.
 
 ---
 
-## Step 4 — Sync the Data Source
+## Step 4 — Verify the Sync
 
-After the Knowledge Base is created, you need to sync it to index the documents:
+After creation, the Knowledge Base automatically syncs the data source. You can verify it completed successfully:
 
 1. Open `shopsmart-kb` in the Bedrock console
-2. Under **Data sources**, select `shopsmart-docs`
-3. Click **Sync**
-4. Wait until sync status shows **Available** (takes ~1 minute for 5 small files)
-
-> Every time you update the documents in S3, you need to re-sync the data source for the changes to take effect.
+2. Under **Data sources**, check that `shopsmart-docs` shows sync status as **Available**
+3. If for any reason the sync failed or you update documents in S3 later, you can manually trigger a re-sync by selecting the data source and clicking **Sync**
 
 ---
 

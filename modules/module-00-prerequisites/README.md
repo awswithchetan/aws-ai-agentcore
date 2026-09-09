@@ -189,7 +189,9 @@ If this command returns results without error, you're good to go.
 
 ## 5. Docker Desktop
 
-AgentCore Runtime packages your agent as a container image. Docker must be running when you deploy.
+AgentCore Runtime supports two deployment methods — **Code Zip** (no Docker needed) and **Container Image** (requires Docker). This course primarily uses Code Zip deployment which is simpler and requires no Docker knowledge.
+
+Install Docker if you want to explore container-based deployment in the advanced modules, or skip this step for now.
 
 First, check if Docker is already installed:
 
@@ -296,49 +298,7 @@ Install these from the Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`):
 
 ---
 
-## 7. Node.js 20+
-
-The AgentCore CLI is a Node.js package. Node.js must be installed before installing the CLI.
-
-### macOS
-
-```bash
-# Install via Homebrew
-brew install node@20
-
-# Verify
-node --version    # Should be v20+
-npm --version
-```
-
-### Ubuntu (Linux)
-
-```bash
-# Install Node.js 20 via NodeSource
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# Verify
-node --version    # Should be v20+
-npm --version
-```
-
----
-
-## 8. AgentCore CLI
-
-The AgentCore CLI is installed via npm:
-
-```bash
-npm install -g @aws/agentcore
-
-# Verify
-agentcore --version
-```
-
----
-
-## 9. Python Virtual Environment & Dependencies
+## 8. Python Virtual Environment & Dependencies
 
 A virtual environment is an isolated folder that keeps this project's Python packages separate from everything else on your machine. Think of it as a dedicated Python workspace just for this course — no conflicts, no clutter.
 
@@ -377,7 +337,7 @@ If this returns a version number, the CLI is installed and working. That's all y
 
 ---
 
-## 11. Verification Checklist
+## 9. Verification Checklist
 
 Run through this checklist before moving to Module 02:
 
@@ -392,12 +352,6 @@ aws sts get-caller-identity  # Should return your account details
 # Docker
 docker --version           # Should be 24+
 docker ps                  # Should return empty list (not an error)
-
-# Node.js
-node --version             # Should be v20+
-
-# AgentCore CLI
-agentcore --version        # Should return version number
 
 # Streamlit
 streamlit --version        # Should return version number
@@ -420,10 +374,8 @@ aws bedrock list-foundation-models \
 | AWS CLI v2 | Deploy and manage AWS resources | ☐ |
 | AWS credentials | Authenticate with AWS | ☐ |
 | Bedrock model access | Anthropic FTU form (one-time, first-time accounts only) | ☐ |
-| Docker | Package agent as container | ☐ |
+| Docker | Required only if deploying agents as container images (advanced modules) | ☐ |
 | VS Code | IDE | ☐ |
-| Node.js 20+ | Required by AgentCore CLI | ☐ |
-| AgentCore CLI | Scaffold, develop, deploy agents | ☐ |
 | Python venv + deps | Isolated Python environment | ☐ |
 
 ---

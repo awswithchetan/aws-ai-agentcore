@@ -1,3 +1,145 @@
-# Module 03 — Runtime — Deploying Agents
+# Module 04 — Runtime
 
-> 🚧 Coming soon — content will be added module by module.
+In this module you will build the **real Aria** — a production-grade AI customer support agent written in Python using Strands Agents, deployed on AgentCore Runtime, and connected to the Knowledge Base created in Module 03.
+
+This is the agent that evolves through the rest of the course. Every subsequent module adds a new capability to this same agent.
+
+---
+
+## What You Will Build
+
+```
+aria/
+├── agent.py          # Aria agent code (Strands + BedrockAgentCoreApp)
+├── requirements.txt  # Python dependencies
+```
+
+Deployed to AgentCore Runtime as a zip package — no Docker required.
+
+---
+
+## How This Differs from Module 02
+
+| | Module 02 — Harness | Module 04 — Runtime |
+|---|---|---|
+| Agent loop | Managed by AgentCore | You write it in Python |
+| FAQ knowledge | Hardcoded in system prompt | Retrieved from Knowledge Base |
+| Framework | Black box | Strands Agents |
+| Deployment | Console config only | Python code + zip deploy |
+| Production ready | No | Yes |
+
+---
+
+## Step 1 — Create the Agent Code
+
+The agent code lives in the `aria-agent/` folder at the root of the repo:
+
+- [`aria-agent/agent.py`](../../aria-agent/agent.py) — Aria agent code
+- [`aria-agent/requirements.txt`](../../aria-agent/requirements.txt) — Python dependencies
+
+Open `aria-agent/agent.py` in VS Code and review the structure before deploying.
+
+---
+
+## Step 2 — Set the Knowledge Base ID
+
+Before deploying, set the Knowledge Base ID from Module 03 as an environment variable. The agent reads this at runtime:
+
+```bash
+export KNOWLEDGE_BASE_ID="<your-kb-id-from-module-03>"
+```
+
+Or add it to a `.env` file in `aria-agent/`:
+
+```
+KNOWLEDGE_BASE_ID=kb-XXXXXXXXXX
+AWS_REGION=us-east-1
+```
+
+---
+
+## Step 3 — Deploy to AgentCore Runtime
+
+### Via AWS Console
+
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
+2. Configure:
+   - **Agent runtime name**: `aria`
+   - **Description**: ShopSmart AI customer support agent
+   - **Deployment method**: Code (zip file)
+   - **Runtime**: Python 3.11
+   - **Entrypoint file**: `agent.py`
+3. **Upload code**:
+   - Zip the `aria-agent/` folder contents
+   - Upload the zip file
+4. **Execution role**: select `AriaHarnessExecutionRole` (created in Module 02)
+5. Click **Create agent runtime**
+6. Wait until status shows **Active**
+7. Note down the **Agent Runtime ARN** and **Endpoint URL**
+
+### Package and upload via CLI (Optional)
+
+```bash
+# From repo root
+cd aria-agent
+zip -r ../aria-agent.zip .
+cd ..
+
+# Upload and deploy
+aws bedrock-agentcore control create-agent-runtime \
+  --agent-runtime-name "aria" \
+  --description "ShopSmart AI customer support agent" \
+  --agent-runtime-artifact '{
+    "codeArtifact": {
+      "runtimeArtifact": {
+        "s3Location": {
+          "uri": "s3://<YOUR_BUCKET>/aria-agent.zip"
+        }
+      }
+    }
+  }' \
+  --network-configuration '{"networkMode": "PUBLIC"}' \
+  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaHarnessExecutionRole" \
+  --region us-east-1
+```
+
+---
+
+## Step 4 — Test via AWS Console
+
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime**
+2. Select `aria` and click the **Test** tab
+3. Try these prompts:
+   - `What is your return policy?`
+   - `How much does express shipping cost?`
+   - `What payment methods do you accept?`
+
+Aria should now retrieve answers from the Knowledge Base documents rather than a hardcoded system prompt.
+
+---
+
+## Step 5 — Update Streamlit UI
+
+Update the Streamlit app to invoke the Runtime agent instead of the Harness.
+
+```bash
+export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:<YOUR_ACCOUNT_ID>:runtime/aria-XXXXXXXX"
+export AWS_REGION="us-east-1"
+streamlit run streamlit-ui/app.py
+```
+
+---
+
+## What You Learned
+
+- How AgentCore Runtime works — isolated execution environment for your agent code
+- How to structure a Strands agent with `BedrockAgentCoreApp`
+- How the `@app.entrypoint` decorator wires your function into the Runtime
+- How to deploy a Python agent as a zip package
+- How to connect the Knowledge Base as a retrieval tool
+
+---
+
+## Next Step
+
+Proceed to [Module 05 — Gateway](../module-05-gateway/README.md) where you will connect Aria to real backend tools — Lambda functions for order lookup, product search, and return requests.

@@ -24,13 +24,17 @@ The Harness needs an IAM role to invoke Bedrock models and write logs. Create th
 ### Via AWS Console
 
 1. Go to **AWS Console → IAM → Roles → Create role**
-2. **Trusted entity**: AWS service → **bedrock-agentcore.amazonaws.com**
-3. Attach these managed policies:
+2. **Trusted entity type**: AWS service
+3. **Use case**: scroll down and select **Amazon Bedrock AgentCore** — this automatically configures the correct trust policy
+4. Click **Next**
+5. Attach these managed policies:
    - `AmazonBedrockFullAccess`
+   - `AmazonBedrockAgentCoreFullAccess`
    - `CloudWatchLogsFullAccess`
-4. Role name: `AriaHarnessExecutionRole`
-5. Click **Create role**
-6. Note down the **Role ARN** — you will need it in the next step
+6. Click **Next**
+7. **Role name**: `AriaHarnessExecutionRole`
+8. Click **Create role**
+9. Note down the **Role ARN**
 
 ### Via CLI (Optional)
 
@@ -81,28 +85,35 @@ rm trust-policy.json
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Harnesses**
 2. Click **Create harness**
-3. Configure:
-   - **Harness name**: `aria`
-   - **Execution role**: `AriaHarnessExecutionRole` (select from dropdown)
-   - **Model provider**: Amazon Bedrock
-   - **Model**: Claude Sonnet 4 (default)
+3. You will see two options — choose **Advanced create harness** for this module
+
+4. Configure:
+   - **Harness name**: `aria-harness`
+   - **Model**: Claude Sonnet 4.6 (default — keep as is)
    - **System prompt**: paste the system prompt from the section below
-4. Click **Create harness**
-5. Wait until status shows **READY** (takes ~1 minute)
-6. Note down the **Harness ARN**
+   - **Execution role**: select `AriaHarnessExecutionRole`
+
+5. Leave all other settings as default for now
+6. Click **Create harness**
+7. Wait until status shows **READY** (takes ~1 minute)
+8. Note down the **Harness ARN**
+
+> **Quick create vs Advanced create:**
+> - **Quick create** — minimal setup, AWS picks sensible defaults for everything. Good for a quick test but gives you no control.
+> - **Advanced create** — lets you configure model, system prompt, execution role, memory, tools, identity, environment, and more. We use this throughout the course.
 
 ### Via CLI (Optional)
 
 ```bash
 # Replace <YOUR_ACCOUNT_ID> with your AWS account ID
 aws bedrock-agentcore-control create-harness \
-  --harness-name "aria" \
+  --harness-name "aria-harness" \
   --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaHarnessExecutionRole" \
   --region us-east-1
 
 # Poll until status is READY
 aws bedrock-agentcore-control get-harness \
-  --harness-id "aria" \
+  --harness-id "aria-harness" \
   --region us-east-1
 ```
 
@@ -172,24 +183,17 @@ Try a few more:
 
 ---
 
-## Step 4 — Invoke via Python (invoke_aria.py)
+## Step 4 — Run the Streamlit Chat UI
 
-A simple Python script to invoke Aria from the command line. This is the foundation the Streamlit UI will build on.
-
-```bash
-# From the repo root, with venv activated
-python modules/module-02-harness/invoke_aria.py
-```
-
-See [invoke_aria.py](invoke_aria.py) for the full script.
-
----
-
-## Step 5 — Run the Streamlit Chat UI
+> **Note**: The repo also includes [`invoke_aria.py`](invoke_aria.py) — a simple terminal-based script if you want to invoke Aria directly via the boto3 SDK without the UI.
 
 ```bash
 # Set your Harness ARN as an environment variable
-export ARIA_HARNESS_ARN="arn:aws:bedrock-agentcore:us-east-1:<YOUR_ACCOUNT_ID>:harness/aria-XyZ123"
+# Use the base harness ARN — NOT the endpoint ARN
+# Correct:   arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria-XXXXXXXX
+# Incorrect: arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria-XXXXXXXX/harness-endpoint/DEFAULT
+
+export ARIA_HARNESS_ARN="arn:aws:bedrock-agentcore:us-east-1:<YOUR_ACCOUNT_ID>:harness/aria-harness-XXXXXXXX"
 export AWS_REGION="us-east-1"
 
 # Run the UI
@@ -197,23 +201,6 @@ streamlit run streamlit-ui/app.py
 ```
 
 Open your browser at `http://localhost:8501` and chat with Aria.
-
----
-
-## Step 6 — Local Development with agentcore dev (Optional)
-
-The AgentCore CLI provides a local dev server with a built-in browser-based agent inspector — useful for iterating on the system prompt quickly:
-
-```bash
-# From the aria-agent directory
-cd aria-agent
-agentcore dev
-```
-
-This opens the agent inspector in your browser where you can:
-- Chat with Aria
-- Inspect traces of every model call
-- Override harness settings on the fly without redeploying
 
 ---
 
@@ -228,6 +215,29 @@ This opens the agent inspector in your browser where you can:
 
 ---
 
+## Cleanup
+
+The `aria-harness` agent has served its purpose. Delete it before moving to Module 03 to avoid unnecessary charges.
+
+### Via AWS Console
+
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Harnesses**
+2. Select `aria-harness`
+3. Click **Actions → Delete**
+4. Confirm deletion
+
+### Via CLI (Optional)
+
+```bash
+aws bedrock-agentcore-control delete-harness \
+  --harness-id "aria-harness" \
+  --region us-east-1
+```
+
+> The IAM role `AriaHarnessExecutionRole` can be kept — we will reuse it in Module 04 for the Runtime agent.
+
+---
+
 ## Next Step
 
-In [Module 03 — Runtime](../module-03-runtime/README.md) you will learn about the AgentCore Runtime that powers the Harness under the hood — microVM isolation, sessions, versioning, and rollback.
+Proceed to [Module 03 — Knowledge Base](../module-03-knowledge-base/README.md) where you will create the ShopSmart Knowledge Base, upload the FAQ documents, and connect it to Aria so she retrieves accurate information dynamically instead of relying on a hardcoded system prompt.
