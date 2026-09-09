@@ -72,49 +72,37 @@ Response returned to Streamlit UI
 
 1. Go to **AWS Console → Amazon Cognito → User pools → Create user pool**
 
-2. **Configure sign-in experience**:
-   - **Cognito user pool sign-in options**: check **Email**
-   - Click **Next**
+2. **Define your application**:
+   - Select **Single-page application (SPA)**
 
-3. **Configure security requirements**:
-   - Password policy: leave as default (Cognito defaults)
-   - MFA: **No MFA** (keep it simple for the course)
-   - Click **Next**
+   <details>
+   <summary>Why SPA and not Traditional Web Application?</summary>
 
-4. **Configure sign-up experience**:
-   - Self-registration: **Enable** (allows users to sign up)
-   - Required attributes: add **name** (so Aria can greet customers)
-   - Click **Next**
+   Streamlit uses the authorization code flow without a client secret — SPAs
+   are public clients designed for exactly this. Cognito automatically enables
+   PKCE for SPA clients. Traditional Web Application requires a client secret,
+   which a browser-based app cannot securely store.
 
-5. **Configure message delivery**:
-   - Email provider: **Send email with Cognito** (free tier, no SES setup)
-   - Click **Next**
+   </details>
 
-6. **Integrate your app**:
-   - **User pool name**: `shopsmart-users`
-   - **Hosted authentication pages**: ✅ **Use the Cognito Hosted UI**
-   - **Domain**: choose **Use a Cognito domain**, enter a unique prefix e.g. `shopsmart-auth-<your-account-id>`
-   - **App type**: **Single-page application (SPA)**
+3. **Name your application**:
+   - **Application name**: `shopsmart-streamlit`
 
-     > SPA is the correct choice here. Streamlit uses the authorization code
-     > flow without a client secret — SPAs are public clients designed for
-     > exactly this. Cognito automatically enables PKCE for SPA clients.
-     > "Traditional web application" requires a client secret, which a
-     > browser-based app cannot securely store.
+4. **Configure options**:
+   - **Sign-in identifiers**: check **Email**
+   - **Self-registration**: ✅ enabled
+   - **Required attributes for sign-up**: open the dropdown and add **name**
+     (Aria uses this to greet customers — it must be collected at sign-up)
+   - **Return URL**: `http://localhost:8501`
+     (Cognito redirects here after login — must match exactly)
 
-   - **App client name**: `shopsmart-streamlit`
-   - **Allowed callback URLs**: `http://localhost:8501` (Streamlit local URL)
-   - **Allowed sign-out URLs**: `http://localhost:8501`
-   - **OAuth 2.0 grant types**: check **Authorization code grant**
-   - **OpenID Connect scopes**: check **OpenID**, **Email**, **Profile**
-   - Click **Next**
+5. Click **Create user directory**
 
-7. Review and click **Create user pool**
-
-8. Note down:
-   - **User Pool ID** (e.g. `us-east-1_XXXXXXXXX`)
-   - **App client ID** (from the App clients tab)
-   - **Cognito domain** (e.g. `https://shopsmart-auth-<id>.auth.us-east-1.amazoncognito.com`)
+6. Note down from the User Pool detail page:
+   - **User Pool ID** — shown at the top (e.g. `us-east-1_XXXXXXXXX`)
+   - **App client ID** — under the **App clients** tab
+   - **Cognito domain** — under **App integration** tab → Domain
+     (e.g. `https://shopsmart-streamlit-jvklra.auth.us-east-1.amazoncognito.com`)
 
 ### Via CLI (Optional)
 
