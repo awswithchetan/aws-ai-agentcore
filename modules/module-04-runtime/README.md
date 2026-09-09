@@ -46,6 +46,31 @@ Open `aria-agent/agent.py` in VS Code and review the structure before deploying.
 
 ---
 
+## Step 1b — Add ECR Permissions to the Execution Role
+
+The `AriaHarnessExecutionRole` created in Module 02 does not have ECR permissions — it didn't need them for the Harness. Now that we are deploying a container image, AgentCore Runtime needs to pull the image from ECR. Add the permission before deploying.
+
+### Via AWS Console
+
+1. Go to **AWS Console → IAM → Roles → `AriaHarnessExecutionRole`**
+2. Click **Add permissions → Attach policies**
+3. Search for `AmazonEC2ContainerRegistryReadOnly`
+4. Select it and click **Add permissions**
+
+### Via CLI (Optional)
+
+```bash
+aws iam attach-role-policy \
+  --role-name AriaHarnessExecutionRole \
+  --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+```
+
+> `AmazonEC2ContainerRegistryReadOnly` grants exactly three permissions:
+> `ecr:GetAuthorizationToken`, `ecr:BatchGetImage`, and `ecr:GetDownloadUrlForLayer`.
+> These are the minimum required for AgentCore to pull a container image — nothing more.
+
+---
+
 ## Step 2 — Externalize Configuration to SSM Parameter Store
 
 Aria loads all dynamic configuration from AWS Systems Manager (SSM) Parameter
