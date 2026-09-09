@@ -48,21 +48,55 @@ Open `aria-agent/agent.py` in VS Code and review the structure before deploying.
 
 ## Step 2 — Externalize Configuration to SSM Parameter Store
 
-Aria loads all dynamic configuration from AWS SSM Parameter Store at container
-startup. This means you can change the model, Knowledge Base ID, or retrieval
-tuning without rebuilding or redeploying the container — a critical property
-for production rollouts.
+Aria loads all dynamic configuration from AWS Systems Manager (SSM) Parameter
+Store at container startup. This separates **configuration** from **code** —
+you can change the model, Knowledge Base ID, or retrieval tuning without
+rebuilding or redeploying the container.
+
+This is a standard production practice. Take a few minutes to explore the
+SSM console before creating the parameters — it's worth understanding what
+you're working with.
+
+> **What is SSM Parameter Store?**
+> A managed key-value store for configuration data. Parameters are versioned,
+> audited (who changed what, when), and can be encrypted (SecureString).
+> Free tier covers standard parameters — all four below qualify.
+> Console: **AWS Console → Systems Manager → Parameter Store**
 
 Parameters are stored under the `/aria/` prefix:
 
-| SSM Parameter             | Purpose                             | Default                          |
+| SSM Parameter             | Purpose                             | Value to set                     |
 |---------------------------|-------------------------------------|----------------------------------|
-| `/aria/region`            | AWS region                          | `us-east-1`                      |
+| `/aria/region`            | AWS region                          | e.g. `us-east-1`                 |
 | `/aria/model_id`          | Bedrock model to use                | `us.anthropic.claude-sonnet-4-6` |
-| `/aria/knowledge_base_id` | Bedrock Knowledge Base ID           | _(required)_                     |
+| `/aria/knowledge_base_id` | Bedrock Knowledge Base ID           | your KB ID from Module 03        |
 | `/aria/kb_num_results`    | Number of KB chunks retrieved/query | `5`                              |
 
-### Create the SSM parameters (one-time setup per environment)
+### Create parameters via AWS Console
+
+1. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
+2. For each row in the table above:
+   - **Name**: the full path (e.g. `/aria/model_id`)
+   - **Tier**: Standard
+   - **Type**: String
+   - **Value**: as shown in the table
+3. Click **Create parameter** and repeat for all four
+
+Spend a moment exploring the parameter detail page — notice the **History**
+tab that tracks every change with a timestamp. This is the audit trail you
+get for free.
+
+### Update a parameter later (e.g. model upgrade)
+
+1. Go to **Parameter Store**, find `/aria/model_id`
+2. Click **Edit**, update the value, save
+3. Restart the AgentCore Runtime — config is read once at cold start
+
+No code change. No image rebuild. No redeployment.
+
+### Automate it (optional)
+
+A script is provided if you want to create or update all parameters at once:
 
 ```bash
 export KNOWLEDGE_BASE_ID="<your-kb-id-from-module-03>"
@@ -71,25 +105,18 @@ export AWS_REGION=us-east-1
 bash aria-agent/scripts/put_ssm_params.sh
 ```
 
-To update a value later (e.g. upgrade the model) without redeploying:
-
-```bash
-MODEL_ID="us.anthropic.claude-sonnet-5-0" \
-KNOWLEDGE_BASE_ID="<your-kb-id>" \
-bash aria-agent/scripts/put_ssm_params.sh
-```
-
-Then restart the agent runtime to pick up the new value on the next cold start.
+See [`aria-agent/scripts/put_ssm_params.sh`](../../aria-agent/scripts/put_ssm_params.sh)
+for the full script.
 
 ### Local development (no SSM required)
 
-Set `SSM_ENABLED=false` and provide env vars directly:
+Set `SSM_ENABLED=false` to skip SSM entirely and use env vars instead:
 
 ```bash
 export SSM_ENABLED=false
 export KNOWLEDGE_BASE_ID=kb-XXXXXXXXXX
 export AWS_REGION=us-east-1
-# MODEL_ID and KB_NUM_RESULTS have sensible defaults
+# MODEL_ID and KB_NUM_RESULTS have built-in defaults
 ```
 
 ---
@@ -245,6 +272,8 @@ streamlit run streamlit-ui/app.py
 - How AgentCore Runtime works — isolated execution environment for your agent code
 - How to structure a Strands agent with `BedrockAgentCoreApp`
 - How the `@app.entrypoint` decorator wires your function into the Runtime
+- How to use SSM Parameter Store to externalize configuration from code
+- Why separating config from code matters for production rollouts
 - How to package an agent as a Docker image and push it to ECR
 - Why Docker is the framework-agnostic choice for production deployments
 - How to connect the Knowledge Base as a retrieval tool
