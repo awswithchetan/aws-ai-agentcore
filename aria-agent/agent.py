@@ -1,21 +1,31 @@
 """
 Aria — ShopSmart AI Customer Support Agent
-Module 04: Runtime with Knowledge Base
+Module 05: Gateway — Connecting Real Tools
 
-This is the production Aria agent built with Strands Agents and deployed
-on Amazon Bedrock AgentCore Runtime. It retrieves answers from the
-ShopSmart Knowledge Base rather than relying on a hardcoded system prompt.
+Adds order and product tools that call the ShopSmart backend API
+through AgentCore Gateway. Aria can now look up real orders and products
+instead of only answering FAQ questions.
 
-This agent evolves throughout the course — each module adds new capabilities.
+New capabilities vs Module 04:
+  - list_customer_orders  — list all orders for a customer
+  - get_order_details     — get full details of a specific order
+  - get_product_details   — get details of a specific product
+  - search_products       — search the product catalog by keyword or category
+  - submit_support_request — initiate a return, exchange, or support ticket
 
-Configuration is loaded from SSM Parameter Store at startup (see config.py).
-No values are hardcoded — change model, KB, or tuning parameters via SSM
-without rebuilding or redeploying the container.
+Configuration (SSM parameters — same prefix /aria/):
+  /aria/model_id          — Bedrock model ID
+  /aria/knowledge_base_id — Bedrock Knowledge Base ID
+  /aria/kb_num_results    — Number of KB chunks per query
+  /aria/region            — AWS region
+  /aria/api_base_url      — ShopSmart API base URL (from CloudFormation output)
 """
 
 import logging
+import os
 
 import boto3
+import requests
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands import Agent, tool
 
@@ -37,7 +47,7 @@ bedrock_agent_runtime = boto3.client(
     region_name=cfg.region,
 )
 
-# ── Tools ──────────────────────────────────────────────────────────────────────
+# ── Tools — Knowledge Base ────────────────────────────────────────────────────
 
 @tool
 def retrieve_from_knowledge_base(query: str) -> str:
@@ -70,7 +80,6 @@ def retrieve_from_knowledge_base(query: str) -> str:
         if not results:
             return "No relevant information found in the knowledge base."
 
-        # Combine retrieved chunks into a single context string
         context = "\n\n".join([
             result["content"]["text"]
             for result in results
@@ -84,6 +93,171 @@ def retrieve_from_knowledge_base(query: str) -> str:
         return "Knowledge base retrieval is currently unavailable."
 
 
+# ── Tools — Orders ────────────────────────────────────────────────────────────
+
+@tool
+def list_customer_orders(customer_id: str) -> str:
+    """
+    List all orders for a customer.
+    Use this when a customer asks about their orders, order history,
+    or wants to know what they have ordered.
+
+    Args:
+        customer_id: The customer's ID (e.g. C001)
+
+    Returns:
+        List of orders for the customer
+    """
+    try:
+        response = requests.get(
+            f"{cfg.api_base_url}/orders",
+            params={"customerId": customer_id},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+        orders = data.get("orders", [])
+        if not orders:
+            return f"No orders found for customer {customer_id}."
+        return str(orders)
+    except Exception as e:
+        logger.error("list_customer_orders failed: %s", e, exc_info=True)
+        return "Unable to retrieve orders at this time. Please try again."
+
+
+@tool
+def get_order_details(order_id: str) -> str:
+    """
+    Get full details of a specific order including status, items, tracking,
+    and any support requests.
+    Use this when a customer asks about a specific order.
+
+    Args:
+        order_id: The order ID (e.g. ORD-1001)
+
+    Returns:
+        Full order details
+    """
+    try:
+        response = requests.get(
+            f"{cfg.api_base_url}/orders/{order_id}",
+            timeout=10,
+        )
+        if response.status_code == 404:
+            return f"Order {order_id} not found."
+        response.raise_for_status()
+        return str(response.json())
+    except Exception as e:
+        logger.error("get_order_details failed: %s", e, exc_info=True)
+        return "Unable to retrieve order details at this time. Please try again."
+
+
+# ── Tools — Products ──────────────────────────────────────────────────────────
+
+@tool
+def get_product_details(product_id: str) -> str:
+    """
+    Get details of a specific product including name, price, description,
+    availability, and rating.
+
+    Args:
+        product_id: The product ID (e.g. P001)
+
+    Returns:
+        Full product details
+    """
+    try:
+        response = requests.get(
+            f"{cfg.api_base_url}/products/{product_id}",
+            timeout=10,
+        )
+        if response.status_code == 404:
+            return f"Product {product_id} not found."
+        response.raise_for_status()
+        return str(response.json())
+    except Exception as e:
+        logger.error("get_product_details failed: %s", e, exc_info=True)
+        return "Unable to retrieve product details at this time. Please try again."
+
+
+@tool
+def search_products(keyword: str = "", category: str = "") -> str:
+    """
+    Search the ShopSmart product catalog by keyword or category.
+    At least one of keyword or category must be provided.
+
+    Args:
+        keyword:  Search term to match against product name and description
+        category: Filter by category (bags, electronics, kitchen, footwear, sports)
+
+    Returns:
+        List of matching products
+    """
+    if not keyword and not category:
+        return "Please provide a keyword or category to search."
+
+    try:
+        params = {}
+        if keyword:
+            params["q"] = keyword
+        if category:
+            params["category"] = category
+
+        response = requests.get(
+            f"{cfg.api_base_url}/products",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+        products = data.get("products", [])
+        if not products:
+            return f"No products found matching your search."
+        return str(products)
+    except Exception as e:
+        logger.error("search_products failed: %s", e, exc_info=True)
+        return "Unable to search products at this time. Please try again."
+
+
+# ── Tools — Support Requests ──────────────────────────────────────────────────
+
+@tool
+def submit_support_request(order_id: str, request_type: str, reason: str) -> str:
+    """
+    Submit a support request for an order — return, exchange, complaint, or inquiry.
+    Use this when a customer wants to return an item, raise a complaint,
+    or ask about a specific order.
+
+    Args:
+        order_id:     The order ID the request is for (e.g. ORD-1001)
+        request_type: One of: return, exchange, complaint, inquiry
+        reason:       Customer's reason or description of the issue
+
+    Returns:
+        Confirmation with ticket ID
+    """
+    try:
+        response = requests.post(
+            f"{cfg.api_base_url}/requests",
+            json={
+                "orderId": order_id,
+                "requestType": request_type,
+                "reason": reason,
+            },
+            timeout=10,
+        )
+        if response.status_code == 404:
+            return f"Order {order_id} not found. Please check the order ID."
+        if response.status_code == 400:
+            return f"Invalid request: {response.json().get('error', 'Bad request')}"
+        response.raise_for_status()
+        data = response.json()
+        return data.get("message", str(data))
+    except Exception as e:
+        logger.error("submit_support_request failed: %s", e, exc_info=True)
+        return "Unable to submit your request at this time. Please try again."
+
+
 # ── System Prompt ──────────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are Aria, the AI customer support agent for ShopSmart — a friendly online retail store.
@@ -91,17 +265,24 @@ SYSTEM_PROMPT = """You are Aria, the AI customer support agent for ShopSmart —
 Your role is to help customers with their shopping experience. Be warm, helpful, and concise.
 
 ## How to answer questions:
-- Always use the retrieve_from_knowledge_base tool to look up ShopSmart's official policies and information
-- Never make up information — if you cannot find an answer, say so honestly
-- Keep responses concise — 2-3 sentences for simple questions
-- If a customer needs help beyond what you know, suggest they contact live support
+- For policy questions (returns, shipping, payments): use retrieve_from_knowledge_base
+- For order questions: use list_customer_orders or get_order_details
+- For product questions: use search_products or get_product_details
+- For return/exchange/complaint requests: use submit_support_request
+- Never make up information — always use the tools to get accurate data
+- Keep responses concise and friendly
+
+## Identifying the customer:
+- You do not have automatic access to who the customer is
+- If a customer asks about their orders, politely ask for their customer ID (e.g. C001)
+- If a customer provides an order ID directly (e.g. ORD-1001), use get_order_details directly
 
 ## What you can help with:
-- Return and refund policy
-- Shipping options and delivery times
-- Payment methods
+- Order status, tracking, and history
+- Returns, exchanges, and complaints
+- Product search and details
+- Return policy, shipping options, payment methods
 - Store hours and support contact
-- General FAQs about orders and accounts
 """
 
 # ── Agent ──────────────────────────────────────────────────────────────────────
@@ -109,7 +290,14 @@ Your role is to help customers with their shopping experience. Be warm, helpful,
 agent = Agent(
     model=cfg.model_id,
     system_prompt=SYSTEM_PROMPT,
-    tools=[retrieve_from_knowledge_base],
+    tools=[
+        retrieve_from_knowledge_base,
+        list_customer_orders,
+        get_order_details,
+        get_product_details,
+        search_products,
+        submit_support_request,
+    ],
 )
 
 # ── AgentCore Runtime Entrypoint ───────────────────────────────────────────────
@@ -137,14 +325,12 @@ def agent_invocation(payload: dict, context) -> dict:
 
     # result.message is a Strands message dict:
     # {'role': 'assistant', 'content': [{'text': '...'}, ...]}
-    # Extract the text from the first text content block.
     message = result.message
     if isinstance(message, dict):
         for block in message.get("content", []):
             if isinstance(block, dict) and "text" in block:
                 return {"result": block["text"]}
 
-    # Fallback — shouldn't normally be reached
     return {"result": str(message)}
 
 
