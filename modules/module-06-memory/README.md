@@ -391,6 +391,44 @@ Hi, my customer ID is C001.
 Aria should greet Alice by name and recall her express shipping preference
 without being told again.
 
+### Inspect what AgentCore stored in memory
+
+After the first session completes, AgentCore extracts facts asynchronously and
+writes them to the memory namespace for C001. You can inspect exactly what was
+stored using the CLI:
+
+```bash
+export MEMORY_ID=$(aws ssm get-parameter --name /aria/memory_id \
+  --query Parameter.Value --output text --region us-east-1)
+export STRATEGY_ID=$(aws ssm get-parameter --name /aria/memory_strategy_id \
+  --query Parameter.Value --output text --region us-east-1)
+export CUSTOMER_ID=C001
+
+aws bedrock-agentcore list-memory-records \
+  --memory-id $MEMORY_ID \
+  --namespace "/strategies/${STRATEGY_ID}/actors/${CUSTOMER_ID}/" \
+  --region us-east-1 \
+  --query "memoryRecordSummaries[*].content.text" \
+  --output table
+```
+
+You should see extracted facts like:
+
+```
+-------------------------------------------------------------------------------------
+|                              ListMemoryRecords                                    |
++-----------------------------------------------------------------------------------+
+|  The user's name is Alice Johnson.                                                |
+|  The user's customer ID is C001.                                                  |
+|  The user prefers express shipping for all orders.                                |
+|  The user placed order ORD-1001 on 2026-08-25 ...                                 |
++-----------------------------------------------------------------------------------+
+```
+
+These are exactly the records Aria retrieves and injects into context at the
+start of the next session. If the table is empty, memory consolidation is still
+in progress — wait a minute and re-run.
+
 <details>
 <summary>Testing with the invoke script</summary>
 
