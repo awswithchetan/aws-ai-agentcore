@@ -59,6 +59,8 @@ aws s3 mb s3://$BUCKET --region $AWS_REGION
 
 ### 1b. Package and upload Lambda code to S3
 
+> The environment variables from step 1a (`AWS_REGION`, `AWS_ACCOUNT_ID`, `BUCKET`) must still be set in the same terminal session.
+
 ```bash
 # Package and upload Lambda functions
 cd shopsmart-backend/lambdas
