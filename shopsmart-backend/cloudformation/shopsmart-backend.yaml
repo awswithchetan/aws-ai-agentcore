@@ -17,6 +17,15 @@ Parameters:
     Default: us-east-1
     Description: AWS region for resource clients inside Lambda functions
 
+  LambdaCodeBucket:
+    Type: String
+    Description: S3 bucket containing Lambda deployment zip files
+
+  LambdaCodePrefix:
+    Type: String
+    Default: lambdas
+    Description: S3 key prefix where Lambda zip files are stored (no trailing slash)
+
 # ── Resources ─────────────────────────────────────────────────────────────────
 
 Resources:
@@ -115,9 +124,8 @@ Resources:
       Handler: list_orders.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
-        ZipFile: |
-          def lambda_handler(event, context):
-              return {"statusCode": 200, "body": "placeholder"}
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub "${LambdaCodePrefix}/list_orders.zip"
       Environment:
         Variables:
           AWS_REGION: !Ref AwsRegion
@@ -137,9 +145,8 @@ Resources:
       Handler: get_order.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
-        ZipFile: |
-          def lambda_handler(event, context):
-              return {"statusCode": 200, "body": "placeholder"}
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub "${LambdaCodePrefix}/get_order.zip"
       Environment:
         Variables:
           AWS_REGION: !Ref AwsRegion
@@ -159,9 +166,8 @@ Resources:
       Handler: get_product.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
-        ZipFile: |
-          def lambda_handler(event, context):
-              return {"statusCode": 200, "body": "placeholder"}
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub "${LambdaCodePrefix}/get_product.zip"
       Environment:
         Variables:
           AWS_REGION: !Ref AwsRegion
@@ -181,9 +187,8 @@ Resources:
       Handler: search_products.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
-        ZipFile: |
-          def lambda_handler(event, context):
-              return {"statusCode": 200, "body": "placeholder"}
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub "${LambdaCodePrefix}/search_products.zip"
       Environment:
         Variables:
           AWS_REGION: !Ref AwsRegion
@@ -203,9 +208,8 @@ Resources:
       Handler: submit_request.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
-        ZipFile: |
-          def lambda_handler(event, context):
-              return {"statusCode": 200, "body": "placeholder"}
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Sub "${LambdaCodePrefix}/submit_request.zip"
       Environment:
         Variables:
           AWS_REGION: !Ref AwsRegion

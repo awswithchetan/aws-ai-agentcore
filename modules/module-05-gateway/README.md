@@ -71,27 +71,16 @@ done
 cd ../..
 ```
 
-### 1c. Update the CloudFormation template to reference S3
-
-In `shopsmart-backend/cloudformation/shopsmart-backend.yaml`, replace each
-Lambda function's `Code` section from the placeholder `ZipFile` to an S3
-reference. For example for `ListOrdersFunction`:
-
-```yaml
-Code:
-  S3Bucket: !Sub "shopsmart-lambda-${AWS::AccountId}"
-  S3Key: lambdas/list_orders.zip
-```
-
-Do the same for all five Lambda functions.
-
-### 1d. Deploy the stack
+### 1c. Deploy the stack
 
 ```bash
 aws cloudformation deploy \
   --template-file shopsmart-backend/cloudformation/shopsmart-backend.yaml \
   --stack-name shopsmart-backend \
-  --parameter-overrides Environment=dev AwsRegion=us-east-1 \
+  --parameter-overrides \
+      Environment=dev \
+      AwsRegion=us-east-1 \
+      LambdaCodeBucket=$BUCKET \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
