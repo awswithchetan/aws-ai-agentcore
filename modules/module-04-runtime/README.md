@@ -166,7 +166,7 @@ cd ..
    - **Description**: ShopSmart AI customer support agent
    - **Deployment method**: Container image
    - **Image URI**: `<your-ecr-repo-uri>:latest`
-3. **Environment variables**: add `KNOWLEDGE_BASE_ID` and `AWS_REGION`
+3. **Environment variables**: add `AWS_REGION` only (e.g. `us-east-1`). All other config is loaded from SSM at startup.
 4. **Execution role**: select `AriaHarnessExecutionRole` (created in Module 02)
 5. Click **Create agent runtime**
 6. Wait until status shows **Active**
@@ -185,7 +185,7 @@ aws bedrock-agentcore control create-agent-runtime \
       }
     }
   }" \
-  --environment-variables "KNOWLEDGE_BASE_ID=$KNOWLEDGE_BASE_ID,AWS_REGION=$AWS_REGION" \
+  --environment-variables "AWS_REGION=$AWS_REGION" \
   --network-configuration '{"networkMode": "PUBLIC"}' \
   --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaHarnessExecutionRole" \
   --region us-east-1
