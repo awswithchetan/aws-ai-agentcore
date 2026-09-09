@@ -32,8 +32,9 @@ agentcore-build/
 testagent/
 testproject/
 
-# Docker
-*.tar
+# Lambda deployment zips — generated at deploy time, not committed
+shopsmart-backend/lambdas/*.zip
+shopsmart-backend/cloudformation/*-packaged.yaml
 
 # VS Code
 .vscode/
