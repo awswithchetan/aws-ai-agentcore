@@ -127,6 +127,12 @@ Go to **DynamoDB → Tables → shopsmart-orders-dev → Explore items** and con
 
 ## Step 3 — Test the API directly
 
+> **Archived module warning:** This guide describes the earlier direct-API
+> architecture. The current backend uses `AWS_IAM`, so the plain `curl`
+> commands below are no longer valid. Use the active
+> [`module-05-gateway`](../module-05-gateway/README.md) guide and its signed
+> validation instructions instead.
+
 Before connecting Aria, verify the API works on its own:
 
 ```bash

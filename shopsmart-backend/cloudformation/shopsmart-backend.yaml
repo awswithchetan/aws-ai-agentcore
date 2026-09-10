@@ -269,7 +269,8 @@ Resources:
       RestApiId: !Ref ShopSmartApi
       ResourceId: !Ref OrdersResource
       HttpMethod: GET
-      AuthorizationType: NONE
+      # Require SigV4 credentials for AgentCore Gateway and direct callers.
+      AuthorizationType: AWS_IAM
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -282,7 +283,7 @@ Resources:
       RestApiId: !Ref ShopSmartApi
       ResourceId: !Ref OrderByIdResource
       HttpMethod: GET
-      AuthorizationType: NONE
+      AuthorizationType: AWS_IAM
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -295,7 +296,7 @@ Resources:
       RestApiId: !Ref ShopSmartApi
       ResourceId: !Ref ProductsResource
       HttpMethod: GET
-      AuthorizationType: NONE
+      AuthorizationType: AWS_IAM
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -308,7 +309,7 @@ Resources:
       RestApiId: !Ref ShopSmartApi
       ResourceId: !Ref ProductByIdResource
       HttpMethod: GET
-      AuthorizationType: NONE
+      AuthorizationType: AWS_IAM
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -321,15 +322,18 @@ Resources:
       RestApiId: !Ref ShopSmartApi
       ResourceId: !Ref RequestsResource
       HttpMethod: POST
-      AuthorizationType: NONE
+      AuthorizationType: AWS_IAM
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SubmitRequestFunction.Arn}/invocations"
 
   # ── API Gateway deployment ──────────────────────────────────────────────────
+  # The logical ID intentionally includes the auth mode. Renaming this resource
+  # forces CloudFormation to publish a fresh deployment when upgrading an
+  # existing stack from unauthenticated methods to AWS_IAM methods.
 
-  ApiDeployment:
+  ApiDeploymentIamAuth:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - ListOrdersMethod
@@ -339,12 +343,13 @@ Resources:
       - SubmitRequestMethod
     Properties:
       RestApiId: !Ref ShopSmartApi
+      Description: !Sub "ShopSmart API ${Environment} deployment with IAM authorization"
 
   ApiStage:
     Type: AWS::ApiGateway::Stage
     Properties:
       RestApiId: !Ref ShopSmartApi
-      DeploymentId: !Ref ApiDeployment
+      DeploymentId: !Ref ApiDeploymentIamAuth
       StageName: !Ref Environment
       Description: !Sub "ShopSmart API ${Environment} stage"
 
@@ -393,6 +398,16 @@ Resources:
 # ── Outputs ───────────────────────────────────────────────────────────────────
 
 Outputs:
+
+  ApiId:
+    Description: ShopSmart API Gateway REST API ID
+    Value: !Ref ShopSmartApi
+    Export:
+      Name: !Sub "ShopSmartApiId-${Environment}"
+
+  ApiInvokeArn:
+    Description: ARN pattern for invoking all ShopSmart API methods
+    Value: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ShopSmartApi}/${Environment}/*/*"
 
   ApiBaseUrl:
     Description: ShopSmart API base URL (used as AgentCore Gateway HTTP target)
