@@ -8,10 +8,11 @@ info:
   version: "1.0.0"
 
 servers:
-  - url: "https://<API_BASE_URL>"
-    description: >
-      Replace <API_BASE_URL> with your ApiBaseUrl CloudFormation output,
-      e.g. https://abc123.execute-api.us-east-1.amazonaws.com/dev
+  # Replace this URL with your ApiBaseUrl from the CloudFormation output
+  # (Module 05, Step 1c). The Gateway reads the target endpoint from here —
+  # there is no separate endpoint field for a REST API target.
+  - url: "https://REPLACE_WITH_YOUR_API_BASE_URL/dev"
+    description: ShopSmart REST API (API Gateway dev stage)
 
 paths:
 
@@ -164,6 +165,12 @@ paths:
                 reason:
                   type: string
                   description: Customer's reason or description of the issue
+                refund_amount:
+                  type: integer
+                  description: >
+                    The refund amount in whole dollars for a return or exchange.
+                    Required when requestType is 'return'. Refunds over $500
+                    are subject to policy review.
       responses:
         "201":
           description: Support request submitted successfully

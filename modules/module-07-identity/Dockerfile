@@ -23,7 +23,6 @@ COPY --from=builder /install /usr/local
 COPY --chown=aria:aria agent.py .
 COPY --chown=aria:aria config.py .
 COPY --chown=aria:aria tools/    tools/
-COPY --chown=aria:aria policies/ policies/
 COPY --chown=aria:aria memory/   memory/
 COPY --chown=aria:aria identity/ identity/
 

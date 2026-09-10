@@ -24,6 +24,7 @@ def lambda_handler(event, context):
     order_id = body.get("orderId")
     request_type = body.get("requestType", "").lower()
     reason = body.get("reason", "").strip()
+    refund_amount = body.get("refund_amount")
 
     # Validate
     if not order_id:
@@ -43,30 +44,38 @@ def lambda_handler(event, context):
     ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
     submitted_at = datetime.now(timezone.utc).isoformat()
 
+    request_record = {
+        "ticketId": ticket_id,
+        "requestType": request_type,
+        "reason": reason,
+        "status": "open",
+        "submittedAt": submitted_at,
+    }
+    if refund_amount is not None:
+        request_record["refundAmount"] = str(refund_amount)
+
     # Append the request ticket to the order record
     orders_table.update_item(
         Key={"orderId": order_id},
         UpdateExpression="SET supportRequests = list_append(if_not_exists(supportRequests, :empty), :req)",
         ExpressionAttributeValues={
-            ":req": [{
-                "ticketId": ticket_id,
-                "requestType": request_type,
-                "reason": reason,
-                "status": "open",
-                "submittedAt": submitted_at,
-            }],
+            ":req": [request_record],
             ":empty": [],
         },
     )
 
-    return _response(201, {
+    response_body = {
         "ticketId": ticket_id,
         "orderId": order_id,
         "requestType": request_type,
         "status": "open",
         "submittedAt": submitted_at,
         "message": f"Your {request_type} request has been submitted. Ticket ID: {ticket_id}",
-    })
+    }
+    if refund_amount is not None:
+        response_body["refundAmount"] = refund_amount
+
+    return _response(201, response_body)
 
 
 def _response(status_code, body):

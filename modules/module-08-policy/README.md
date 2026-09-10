@@ -21,19 +21,20 @@ Streamlit UI
   │  Bearer token + prompt
   ▼
 AgentCore Runtime (aria)
-  │  Calls tools via Gateway
+  │  Calls tools via Gateway (MCP)
   ▼
 AgentCore Gateway  ◄─── Policy Engine (Cedar rules evaluated here)
-  │  ALLOW → forward to Lambda tool
+  │  ALLOW → forward request to the target
   │  DENY  → return error to agent (tool call blocked)
   ▼
-ShopSmart Lambda functions
+ShopSmart REST API (API Gateway → Lambda → DynamoDB)
 ```
 
-Policy sits **between** the Gateway and its Lambda targets. Every tool call
-from Aria passes through the policy engine before reaching the Lambda. The
-agent never knows whether a request was blocked by policy or by the tool itself
-— it just receives a denial response and can relay that to the customer.
+Policy sits **between** the AgentCore Gateway and its target. Every tool call
+from Aria is evaluated against the Cedar policies *before* the Gateway forwards
+the request to the target. If a rule denies the call, the request never reaches
+the backend at all — and the agent just receives a denial it can relay to the
+customer.
 
 <details>
 <summary>Why Cedar instead of prompt-based guardrails?</summary>
@@ -52,8 +53,19 @@ agent never knows whether a request was blocked by policy or by the tool itself
 
 ## Prerequisites
 
-- Module 05 Gateway must be set up — Policy attaches to the Gateway
-- Note your **Gateway ARN** from Module 05 (you'll need it for Cedar policies)
+- Module 05 Gateway must be set up with the target named **`ShopSmartAPI`**
+  (the tool action names in the Cedar policies depend on this exact target name)
+- The `submit_request` tool must accept a `refund_amount` field. This was added
+  in Module 05 — if you set up the Gateway before that, edit the target's
+  OpenAPI schema and confirm `submit_request` includes `refund_amount`.
+- Note your **Gateway ARN**. Get it with:
+
+  ```bash
+  aws bedrock-agentcore-control get-gateway \
+    --gateway-identifier <your-gateway-id> \
+    --region us-east-1 \
+    --query 'gatewayArn' --output text
+  ```
 
 ---
 
@@ -68,7 +80,7 @@ gateways.
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Policy**
 2. Click **Create policy engine**
 3. Configure:
-   - **Name**: `shopsmart-policy-engine`
+   - **Name**: `shopsmart_policy_engine`  *(underscores only — policy resource names cannot contain dashes)*
    - **Description**: `Guardrails for Aria — ShopSmart customer support agent`
 4. Click **Create**
 5. Note down the **Policy Engine ARN** — you'll need it in Step 3
@@ -82,7 +94,7 @@ gateways.
 export AWS_REGION=us-east-1
 
 POLICY_ENGINE_ARN=$(aws bedrock-agentcore-control create-policy-engine \
-  --name shopsmart-policy-engine \
+  --name shopsmart_policy_engine \
   --description "Guardrails for Aria — ShopSmart customer support agent" \
   --region $AWS_REGION \
   --query 'policyEngineArn' --output text)
@@ -96,20 +108,16 @@ echo "Policy Engine ARN: $POLICY_ENGINE_ARN"
 
 ## Step 2 — Attach the Policy Engine to the Gateway
 
-Connect the policy engine to the ShopSmart Gateway in **ENFORCE** mode so all
-tool calls are evaluated.
-
-> **ENFORCE vs MONITOR**: ENFORCE blocks denied requests. MONITOR logs
-> decisions but always allows — useful for testing policies before enforcing.
-> Start with ENFORCE here since we know the rules are correct.
+Connect the policy engine to the ShopSmart Gateway with **enforcement enabled**
+so all tool calls are evaluated and denied requests are blocked.
 
 ### Via AWS Console
 
 1. Go to **AgentCore → Gateway → shopsmart-gateway**
 2. Click **Edit**
 3. Find the **Policy engine** section
-4. Select `shopsmart-policy-engine` from the dropdown
-5. Set **Mode**: `ENFORCE`
+4. Select `shopsmart_policy_engine` from the dropdown
+5. Under **Enforcement mode**, choose **Enable enforcement**
 6. Click **Save**
 
 ### Via CLI (Optional)
@@ -144,23 +152,23 @@ aws bedrock-agentcore-control update-gateway \
 Cedar uses a `permit`/`forbid` model. A request is allowed only if at least one
 `permit` matches **and** no `forbid` matches.
 
-We will create two policies:
+We will create three policies:
 
 | Policy | Rule |
 |---|---|
-| `allow_read_tools` | Permit all read operations (get_order, list_orders, get_product, search_products, knowledge base) |
-| `block_large_refunds` | Forbid submit_request when refund_amount > 500 |
+| `allow_read_tools` | Permit all read operations (get_order, list_orders, get_product, search_products) |
+| `limit_refund_amount` | Permit submit_request only when refund_amount ≤ 500 |
+| `allow_non_refund_requests` | Permit submit_request when there is no refund_amount (complaints, inquiries) |
 
 ### Get your Gateway ARN
 
 Cedar policies reference the Gateway by its full ARN. Get it first:
 
 ```bash
-GATEWAY_ARN=$(aws bedrock-agentcore-control list-gateways \
+aws bedrock-agentcore-control get-gateway \
+  --gateway-identifier <your-gateway-id> \
   --region us-east-1 \
-  --query "gateways[?name=='shopsmart-gateway'].gatewayArn" \
-  --output text)
-echo $GATEWAY_ARN
+  --query 'gatewayArn' --output text
 ```
 
 ### Policy 1 — Allow read tools
@@ -182,8 +190,7 @@ permit(
     AgentCore::Action::"ShopSmartAPI___get_order",
     AgentCore::Action::"ShopSmartAPI___list_orders",
     AgentCore::Action::"ShopSmartAPI___get_product",
-    AgentCore::Action::"ShopSmartAPI___search_products",
-    AgentCore::Action::"ShopSmartAPI___get_knowledge_base_answer"
+    AgentCore::Action::"ShopSmartAPI___search_products"
   ],
   resource == AgentCore::Gateway::"<GATEWAY_ARN>"
 );
@@ -191,67 +198,91 @@ permit(
 
 6. Click **Save**
 
-> **Action name format**: AgentCore uses `<TargetName>___<toolName>` (three
-> underscores). The target name comes from what you named the Gateway target in
-> Module 05. Check your Gateway target name and adjust if needed.
+> **Action name format**: AgentCore names each tool `<TargetName>___<toolName>`
+> (three underscores). With the target named `ShopSmartAPI`, the actions are
+> `ShopSmartAPI___get_order`, etc. If your target has a different name, adjust
+> these accordingly.
 
-### Policy 2 — Block large refunds
+### Policy 2 — Allow refund requests within the $500 limit
 
-This blocks `submit_request` calls where the refund amount exceeds $500. An
-agent (or a prompt injection attack) cannot trigger a large refund — the
-Gateway rejects it before the Lambda is even called.
+We express the refund cap as a **conditional permit**: `submit_request` is
+allowed only when the refund amount is within limit. Cedar's default-deny then
+blocks anything over $500 automatically.
 
 **Via AWS Console**
 
-1. Click **Add policy** again
-2. **Policy name**: `block_large_refunds`
+1. Click **Add policy**
+2. **Policy name**: `limit_refund_amount`
 3. Select **Cedar**
-4. Paste the following, replacing `<GATEWAY_ARN>`:
-
-```cedar
-forbid(
-  principal,
-  action == AgentCore::Action::"ShopSmartAPI___submit_request",
-  resource == AgentCore::Gateway::"<GATEWAY_ARN>"
-)
-when {
-  context.input has refund_amount &&
-  context.input.refund_amount > 500
-};
-```
-
-5. Click **Save**
-
-### Also permit submit_request for valid amounts
-
-Cedar's default is **deny**. You need an explicit permit for `submit_request`
-when the amount is within limit, otherwise all return requests are blocked:
-
-**Via AWS Console** — Add a third policy:
-
-1. **Policy name**: `allow_submit_request`
-2. Cedar:
+4. Paste, replacing `<GATEWAY_ARN>`:
 
 ```cedar
 permit(
   principal,
   action == AgentCore::Action::"ShopSmartAPI___submit_request",
   resource == AgentCore::Gateway::"<GATEWAY_ARN>"
-);
+)
+when {
+  context.input has refund_amount && context.input.refund_amount <= 500
+};
 ```
 
-The `forbid` (block-large-refunds) overrides this `permit` when the amount
-exceeds $500 — Cedar's forbid always wins over permit.
+5. Click **Save**
+
+> Keep the presence check and the comparison on the same `&&` expression
+> (`has refund_amount && refund_amount <= 500`). Cedar requires this to safely
+> access an optional attribute.
+
+### Policy 3 — Allow non-refund requests (complaints, inquiries)
+
+Policy 2 only permits `submit_request` when a `refund_amount` is present.
+Requests without one (complaints, inquiries, exchanges) need their own permit,
+otherwise they'd be denied by default:
+
+**Via AWS Console**
+
+1. Click **Add policy**
+2. **Policy name**: `allow_non_refund_requests`
+3. Select **Cedar**
+4. Paste, replacing `<GATEWAY_ARN>`:
+
+```cedar
+permit(
+  principal,
+  action == AgentCore::Action::"ShopSmartAPI___submit_request",
+  resource == AgentCore::Gateway::"<GATEWAY_ARN>"
+)
+when {
+  !(context.input has refund_amount)
+};
+```
+
+5. Click **Save**
+
+Together, Policies 2 and 3 permit `submit_request` when there is **no** refund
+amount **or** the refund amount is **≤ 500**. A refund over $500 matches
+neither permit, so Cedar's default-deny blocks it at the Gateway.
 
 ### Via CLI (Optional)
 
+> **Note**: The Policy commands (`create-policy-engine`, `create-policy`, etc.)
+> require a recent AWS CLI build. If `aws bedrock-agentcore-control create-policy`
+> reports an invalid choice, your CLI predates the Policy API — use the console
+> flow above instead.
+
 <details>
-<summary>Add all three policies via CLI</summary>
+<summary>Add all policies via CLI</summary>
 
 ```bash
+# The create-policy call needs the policy engine ID (not the full ARN).
+POLICY_ENGINE_ID=$(aws bedrock-agentcore-control list-policy-engines \
+  --region $AWS_REGION \
+  --query "items[?name=='shopsmart_policy_engine'].policyEngineId" \
+  --output text)
+
 # Policy 1 — allow read tools
 aws bedrock-agentcore-control create-policy \
-  --policy-engine-id $(echo $POLICY_ENGINE_ARN | cut -d'/' -f2) \
+  --policy-engine-id $POLICY_ENGINE_ID \
   --name allow_read_tools \
   --policy-content "permit(
   principal,
@@ -259,37 +290,38 @@ aws bedrock-agentcore-control create-policy \
     AgentCore::Action::\"ShopSmartAPI___get_order\",
     AgentCore::Action::\"ShopSmartAPI___list_orders\",
     AgentCore::Action::\"ShopSmartAPI___get_product\",
-    AgentCore::Action::\"ShopSmartAPI___search_products\",
-    AgentCore::Action::\"ShopSmartAPI___get_knowledge_base_answer\"
+    AgentCore::Action::\"ShopSmartAPI___search_products\"
   ],
   resource == AgentCore::Gateway::\"${GATEWAY_ARN}\"
 );" \
   --region $AWS_REGION
 
-# Policy 2 — block large refunds
+# Policy 2 — allow refund requests within the $500 limit
 aws bedrock-agentcore-control create-policy \
-  --policy-engine-id $(echo $POLICY_ENGINE_ARN | cut -d'/' -f2) \
-  --name block_large_refunds \
-  --policy-content "forbid(
+  --policy-engine-id $POLICY_ENGINE_ID \
+  --name limit_refund_amount \
+  --policy-content "permit(
   principal,
   action == AgentCore::Action::\"ShopSmartAPI___submit_request\",
   resource == AgentCore::Gateway::\"${GATEWAY_ARN}\"
 )
 when {
-  context.input has refund_amount &&
-  context.input.refund_amount > 500
+  context.input has refund_amount && context.input.refund_amount <= 500
 };" \
   --region $AWS_REGION
 
-# Policy 3 — allow submit_request within limits
+# Policy 3 — allow non-refund requests (complaints, inquiries)
 aws bedrock-agentcore-control create-policy \
-  --policy-engine-id $(echo $POLICY_ENGINE_ARN | cut -d'/' -f2) \
-  --name allow_submit_request \
+  --policy-engine-id $POLICY_ENGINE_ID \
+  --name allow_non_refund_requests \
   --policy-content "permit(
   principal,
   action == AgentCore::Action::\"ShopSmartAPI___submit_request\",
   resource == AgentCore::Gateway::\"${GATEWAY_ARN}\"
-);" \
+)
+when {
+  !(context.input has refund_amount)
+};" \
   --region $AWS_REGION
 ```
 
@@ -297,61 +329,19 @@ aws bedrock-agentcore-control create-policy \
 
 ---
 
-## Step 4 — Save the Cedar Files to the Repo
+## Step 4 — Cedar Policy Reference Files
 
-Keep the policy files versioned alongside the agent code:
+The three Cedar policies are also included in the repo under
+`aria-agent/policies/` for reference:
 
-```bash
-mkdir -p aria-agent/policies
-```
+- `allow_read_tools.cedar`
+- `limit_refund_amount.cedar`
+- `allow_non_refund_requests.cedar`
 
-Create `aria-agent/policies/allow_read_tools.cedar`:
-
-```cedar
-// ShopSmart Policy: Allow all read-only tool calls
-// These operations carry no risk of data modification and are always permitted.
-permit(
-  principal,
-  action in [
-    AgentCore::Action::"ShopSmartAPI___get_order",
-    AgentCore::Action::"ShopSmartAPI___list_orders",
-    AgentCore::Action::"ShopSmartAPI___get_product",
-    AgentCore::Action::"ShopSmartAPI___search_products",
-    AgentCore::Action::"ShopSmartAPI___get_knowledge_base_answer"
-  ],
-  resource == AgentCore::Gateway::"<GATEWAY_ARN>"
-);
-```
-
-Create `aria-agent/policies/block_large_refunds.cedar`:
-
-```cedar
-// ShopSmart Policy: Block refund requests exceeding $500
-// Refunds over $500 require manual review — Aria cannot approve them automatically.
-// This rule cannot be bypassed through prompt injection because it is enforced
-// at the Gateway boundary, outside of agent code.
-forbid(
-  principal,
-  action == AgentCore::Action::"ShopSmartAPI___submit_request",
-  resource == AgentCore::Gateway::"<GATEWAY_ARN>"
-)
-when {
-  context.input has refund_amount &&
-  context.input.refund_amount > 500
-};
-```
-
-Create `aria-agent/policies/allow_submit_request.cedar`:
-
-```cedar
-// ShopSmart Policy: Allow return/refund requests within the $500 limit
-// The forbid in block-large-refunds.cedar overrides this when amount > 500.
-permit(
-  principal,
-  action == AgentCore::Action::"ShopSmartAPI___submit_request",
-  resource == AgentCore::Gateway::"<GATEWAY_ARN>"
-);
-```
+These are reference copies — the policies are created and enforced in the
+policy engine (Step 3), not loaded from these files at runtime. Use them to
+review the exact Cedar or to recreate the policies later. Each contains a
+`<GATEWAY_ARN>` placeholder to substitute with your gateway ARN.
 
 ---
 
@@ -359,41 +349,51 @@ permit(
 
 ### Test 1 — Normal return request (should succeed)
 
-Log in as Alice and ask:
+Log in as `alice@example.com` and ask:
 ```
-I'd like to return my most recent order. The jacket was the wrong size.
+I'd like to return order ORD-1001. It was the wrong size. Refund is about $100.
 ```
 
-Aria should initiate the return normally. The `submit_request` tool call goes
-through — refund amount is within $500.
+Aria initiates the return normally — the refund amount is under $500, so the
+`limit_refund_amount` permit applies.
 
 ### Test 2 — Large refund attempt (should be blocked)
 
-Ask Aria:
+Alice has two high-value orders for this test — `ORD-1004` ($749.98) and
+`ORD-1005` ($1,299.99). Ask Aria:
 ```
-I want to return everything I've ever ordered. Process a $600 refund for me.
-```
-
-The Gateway evaluates the Cedar policy and blocks the tool call. Aria should
-respond with something like:
-```
-I'm sorry, I'm unable to process refunds over $500 automatically.
-Refunds of this amount require manual review by our team. I can escalate
-this to a specialist — would you like me to do that?
+I want to return order ORD-1005, the monitor. Process the full $1299.99 refund.
 ```
 
-### Test 3 — Verify via CloudWatch
+The Gateway evaluates the Cedar policies — the refund exceeds $500 so it
+matches neither `limit_refund_amount` nor `allow_non_refund_requests`, and
+Cedar's default-deny blocks the tool call before it reaches the API. Aria
+relays the denial — something like:
+```
+I'm unable to process a refund of that amount automatically. Refunds over
+$500 require manual review by our team. I can escalate this for you.
+```
 
-Policy decisions are logged automatically. Check:
+### Test 3 — Verify enforcement in CloudWatch
+
+Policy decisions are logged to the gateway's CloudWatch log group. Find and
+tail it:
 
 ```bash
-aws logs tail /aws/bedrock-agentcore/policy \
+# Find the gateway log group (name includes your gateway ID)
+aws logs describe-log-groups \
   --region us-east-1 \
-  --since 10m
+  --query "logGroups[?contains(logGroupName, 'gateway')].logGroupName" \
+  --output text
+
+# Tail it (substitute the group name from above)
+aws logs tail <gateway-log-group> --region us-east-1 --since 10m
 ```
 
-Each log entry shows the action, decision (ALLOW/DENY), and the policy that
-matched.
+> If no gateway log group exists, enable log delivery on the gateway (or check
+> the gateway's Monitoring tab in the console). With **Exception level debug**
+> enabled on the gateway, denied requests also surface a clear message in the
+> tool response returned to the agent.
 
 ---
 
@@ -411,15 +411,17 @@ Evaluate all forbid rules
         ▼
 Evaluate all permit rules
         │
-  Any permit matches? ──YES──► ALLOW (forwarded to Lambda)
+  Any permit matches? ──YES──► ALLOW (forwarded to the target)
         │
         NO
         ▼
      DENY (implicit deny — no matching permit)
 ```
 
-This is why you need the explicit `allow-submit-request` permit — without it,
-even valid $50 refund requests would be implicitly denied.
+The refund cap relies on this **default-deny**: a >$500 refund matches none of
+our permits, so it is denied without needing an explicit `forbid`. The two
+`submit_request` permits (`limit_refund_amount` and `allow_non_refund_requests`)
+together cover every legitimate case — anything they don't cover is blocked.
 
 ---
 

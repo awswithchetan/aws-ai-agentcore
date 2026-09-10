@@ -19,11 +19,10 @@ WORKDIR /app
 
 COPY --from=builder /install /usr/local
 
-# Copy agent source — Module 05 adds tools/ and policies/ directories
+# Copy agent source
 COPY --chown=aria:aria agent.py .
 COPY --chown=aria:aria config.py .
 COPY --chown=aria:aria tools/    tools/
-COPY --chown=aria:aria policies/ policies/
 
 USER aria
 
