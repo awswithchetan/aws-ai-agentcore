@@ -1,32 +1,23 @@
 """
 Aria — Configuration Loader
 ============================
-Loads agent configuration from AWS Systems Manager (SSM) Parameter Store.
-Falls back to environment variables so local development works without SSM.
+Module 07 adds Cognito parameters for the inbound JWT authorizer.
 
-Production layout (all parameters under /aria/):
-  /aria/model_id          — Bedrock model ID (e.g. us.anthropic.claude-sonnet-4-6)
-  /aria/knowledge_base_id — Bedrock Knowledge Base ID
-  /aria/kb_num_results    — Number of KB chunks to retrieve per query
-  /aria/region            — AWS region
+SSM Parameters (all under /aria/):
+  /aria/model_id              — Bedrock model ID
+  /aria/knowledge_base_id     — Bedrock Knowledge Base ID
+  /aria/kb_num_results        — Number of KB chunks per query
+  /aria/region                — AWS region
+  /aria/gateway_endpoint      — AgentCore Gateway MCP endpoint URL
+  /aria/memory_id             — AgentCore Memory resource ID
+  /aria/memory_strategy_id    — AgentCore Memory strategy ID
+  /aria/cognito_user_pool_id  — NEW: Cognito User Pool ID (for Streamlit UI)
+  /aria/cognito_client_id     — NEW: Cognito App Client ID (for Streamlit UI)
+  /aria/cognito_domain        — NEW: Cognito hosted UI domain (for Streamlit UI)
 
-Why SSM instead of env vars for these values?
-  - Model upgrades and KB replacements are configuration changes, not code changes.
-  - Changing an env var requires a container redeploy; changing an SSM parameter does not.
-  - SSM gives you an audit trail (who changed what, when) out of the box.
-  - SSM SecureString can be used for sensitive values without Secrets Manager overhead.
-
-Local development:
-  Set the equivalent environment variables and SSM loading is skipped automatically
-  (SSM_ENABLED=false), or just leave SSM_ENABLED unset — the fallback chain handles it.
-
-Environment variables (fallback / local dev):
-  SSM_ENABLED        — Set to "false" to skip SSM entirely (default: "true")
-  SSM_PREFIX         — Override the SSM path prefix (default: /aria)
-  MODEL_ID           — Fallback model ID
-  KNOWLEDGE_BASE_ID  — Fallback Knowledge Base ID
-  KB_NUM_RESULTS     — Fallback retrieval result count (default: 5)
-  AWS_REGION         — AWS region (default: us-east-1)
+Note: The agent itself does not need Cognito parameters at runtime — the JWT is
+validated by the AgentCore Runtime before the agent code runs. These parameters
+are used by the Streamlit UI to drive the login flow.
 """
 
 import logging
@@ -44,9 +35,12 @@ _DEFAULTS = {
     "knowledge_base_id": "",
     "kb_num_results": "5",
     "region": "us-east-1",
-    "api_base_url": "",
+    "gateway_endpoint": "",
     "memory_id": "",
     "memory_strategy_id": "",
+    "cognito_user_pool_id": "",
+    "cognito_client_id": "",
+    "cognito_domain": "",
 }
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -60,11 +54,6 @@ def _ssm_prefix() -> str:
 
 
 def _load_from_ssm(region: str) -> dict:
-    """
-    Fetch all parameters under the /aria/ prefix in a single API call.
-    Returns a dict keyed by the last path segment (e.g. 'model_id').
-    Returns an empty dict on any error so the fallback chain still works.
-    """
     prefix = _ssm_prefix()
     try:
         client = boto3.client("ssm", region_name=region)
@@ -73,7 +62,7 @@ def _load_from_ssm(region: str) -> dict:
         for page in paginator.paginate(
             Path=prefix,
             Recursive=False,
-            WithDecryption=True,  # handles SecureString transparently
+            WithDecryption=True,
         ):
             for p in page["Parameters"]:
                 key = p["Name"].removeprefix(prefix + "/")
@@ -92,12 +81,6 @@ def _load_from_ssm(region: str) -> dict:
 
 
 def _resolve(key: str, ssm: dict) -> str:
-    """
-    Resolution order:
-      1. SSM Parameter Store  (when SSM_ENABLED=true)
-      2. Environment variable (upper-case key name)
-      3. Hard-coded default
-    """
     env_key = key.upper()
     value = ssm.get(key) or os.environ.get(env_key) or _DEFAULTS.get(key, "")
     return value
@@ -106,10 +89,7 @@ def _resolve(key: str, ssm: dict) -> str:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 class AgentConfig:
-    """
-    Immutable configuration snapshot loaded once at agent startup.
-    Access values as attributes: cfg.model_id, cfg.knowledge_base_id, etc.
-    """
+    """Immutable configuration snapshot loaded once at agent startup."""
 
     def __init__(self):
         region = os.environ.get("AWS_REGION", _DEFAULTS["region"])
@@ -119,9 +99,13 @@ class AgentConfig:
         self.model_id: str = _resolve("model_id", ssm)
         self.knowledge_base_id: str = _resolve("knowledge_base_id", ssm)
         self.kb_num_results: int = int(_resolve("kb_num_results", ssm))
-        self.api_base_url: str = _resolve("api_base_url", ssm).rstrip("/")
+        self.gateway_endpoint: str = _resolve("gateway_endpoint", ssm).rstrip("/")
         self.memory_id: str = _resolve("memory_id", ssm)
         self.memory_strategy_id: str = _resolve("memory_strategy_id", ssm)
+        # Cognito — used by Streamlit UI, not by agent code directly
+        self.cognito_user_pool_id: str = _resolve("cognito_user_pool_id", ssm)
+        self.cognito_client_id: str = _resolve("cognito_client_id", ssm)
+        self.cognito_domain: str = _resolve("cognito_domain", ssm).rstrip("/")
 
         self._validate()
 
@@ -130,43 +114,32 @@ class AgentConfig:
             raise ValueError("Configuration error: 'model_id' is required but not set.")
         if self.kb_num_results < 1 or self.kb_num_results > 20:
             raise ValueError(
-                f"Configuration error: 'kb_num_results' must be between 1 and 20, got {self.kb_num_results}."
+                f"Configuration error: 'kb_num_results' must be between 1 and 20, "
+                f"got {self.kb_num_results}."
             )
-        if not self.knowledge_base_id:
-            logger.warning(
-                "Configuration warning: 'knowledge_base_id' is not set. "
-                "Knowledge base retrieval will be disabled."
-            )
-        if not self.api_base_url:
-            logger.warning(
-                "Configuration warning: 'api_base_url' is not set. "
-                "Order and product tools will be disabled."
-            )
-        if not self.memory_id:
-            logger.warning(
-                "Configuration warning: 'memory_id' is not set. "
-                "Persistent memory will be disabled."
-            )
-        if not self.memory_strategy_id:
-            logger.warning(
-                "Configuration warning: 'memory_strategy_id' is not set. "
-                "Persistent memory will be disabled."
-            )
+        for name, value in [
+            ("knowledge_base_id", self.knowledge_base_id),
+            ("gateway_endpoint", self.gateway_endpoint),
+            ("memory_id", self.memory_id),
+            ("memory_strategy_id", self.memory_strategy_id),
+            ("cognito_user_pool_id", self.cognito_user_pool_id),
+            ("cognito_client_id", self.cognito_client_id),
+            ("cognito_domain", self.cognito_domain),
+        ]:
+            if not value:
+                logger.warning("Configuration warning: '%s' is not set.", name)
 
     def __repr__(self):
         return (
             f"AgentConfig("
             f"region={self.region!r}, "
             f"model_id={self.model_id!r}, "
-            f"knowledge_base_id={'<set>' if self.knowledge_base_id else '<not set>'!r}, "
-            f"kb_num_results={self.kb_num_results}, "
-            f"api_base_url={'<set>' if self.api_base_url else '<not set>'!r}, "
-            f"memory_id={'<set>' if self.memory_id else '<not set>'!r}, "
-            f"memory_strategy_id={'<set>' if self.memory_strategy_id else '<not set>'!r}"
+            f"knowledge_base_id={'<set>' if self.knowledge_base_id else '<not set>'}, "
+            f"gateway_endpoint={'<set>' if self.gateway_endpoint else '<not set>'}, "
+            f"memory_id={'<set>' if self.memory_id else '<not set>'}, "
+            f"cognito_user_pool_id={'<set>' if self.cognito_user_pool_id else '<not set>'}"
             f")"
         )
 
 
-# Module-level singleton — loaded once when the container starts.
-# Import this in agent.py: from config import cfg
 cfg = AgentConfig()

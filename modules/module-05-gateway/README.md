@@ -5,25 +5,45 @@ functions backed by DynamoDB. Aria moves from answering only FAQ questions to
 looking up actual orders, searching the product catalog, and submitting support
 requests on behalf of customers.
 
+Tools are routed through **AgentCore Gateway** using the ShopSmart REST API as
+an HTTP target. The Gateway parses the OpenAPI spec, exposes each API operation
+as an MCP tool, and the agent discovers them automatically — no hardcoded tool
+definitions in agent code.
+
 ---
 
 ## What You Will Build
 
 ```
-shopsmart-backend/
-├── cloudformation/
-│   └── shopsmart-backend.yaml   # DynamoDB + Lambda + API Gateway
-├── lambdas/
-│   ├── list_orders.py
-│   ├── get_order.py
-│   ├── get_product.py
-│   ├── search_products.py
-│   └── submit_request.py
-└── seed_data.py                 # Populate tables with sample data
-
-modules/module-05-gateway/
-└── agent.py                     # Aria with order and product tools
+aria-agent (Runtime)
+    │  discovers + calls tools via MCP
+    ▼
+AgentCore Gateway
+    │  routes to HTTP target using OpenAPI spec
+    ▼
+ShopSmart REST API (API Gateway)
+    ├── GET  /orders           → list_orders Lambda    → DynamoDB
+    ├── GET  /orders/{id}      → get_order Lambda      → DynamoDB
+    ├── GET  /products         → search_products Lambda → DynamoDB
+    ├── GET  /products/{id}    → get_product Lambda    → DynamoDB
+    └── POST /requests         → submit_request Lambda → DynamoDB
 ```
+
+<details>
+<summary>Why HTTP target instead of Lambda target?</summary>
+
+AgentCore Gateway supports both Lambda and HTTP targets. We use HTTP because:
+
+- The ShopSmart backend already has a REST API (deployed by CloudFormation)
+- The existing Lambda functions stay completely unchanged
+- OpenAPI specs are the industry-standard way to describe REST APIs
+- HTTP targets are more representative of real-world usage — most backends
+  already have an HTTP API
+
+Lambda targets make sense when you're writing a new Lambda specifically to
+serve as a tool, with no HTTP layer in front of it.
+
+</details>
 
 <details>
 <summary>How This Differs from Module 04</summary>
@@ -33,8 +53,9 @@ modules/module-05-gateway/
 | Knowledge source | Knowledge Base only | Knowledge Base + Live backend |
 | Order lookup | Not possible | Real DynamoDB orders |
 | Product search | Not possible | Real DynamoDB products |
-| Return requests | Not possible | Submitted via API |
-| Customer identity | N/A | Customer provides their ID |
+| Return requests | Not possible | Submitted via REST API |
+| Tool routing | N/A | AgentCore Gateway (MCP) |
+| Policy/Observability ready | No | Yes — Gateway is the hook |
 
 </details>
 
@@ -52,18 +73,7 @@ export BUCKET=shopsmart-lambda-$AWS_ACCOUNT_ID
 aws s3 mb s3://$BUCKET --region $AWS_REGION
 ```
 
-<details>
-<summary>Why a separate S3 bucket for Lambda packages?</summary>
-
-CloudFormation needs the Lambda zip files to exist in S3 before it can deploy
-the stack. The bucket name includes your account ID to make it globally unique —
-S3 bucket names must be unique across all AWS accounts worldwide.
-
-</details>
-
 ### 1b. Package and upload Lambda code
-
-> The environment variables from step 1a must still be set in the same terminal session.
 
 ```bash
 cd shopsmart-backend/lambdas
@@ -74,7 +84,7 @@ done
 cd ../..
 ```
 
-### 1c. Deploy the stack
+### 1c. Deploy the CloudFormation stack
 
 ```bash
 aws cloudformation deploy \
@@ -84,20 +94,19 @@ aws cloudformation deploy \
       Environment=dev \
       LambdaCodeBucket=$BUCKET \
   --capabilities CAPABILITY_NAMED_IAM \
-  --region us-east-1
+  --region $AWS_REGION
 ```
 
-Wait for `CREATE_COMPLETE`. Then note the API URL:
+Wait for `CREATE_COMPLETE`. Then note the API base URL:
 
 ```bash
 aws cloudformation describe-stacks \
   --stack-name shopsmart-backend \
-  --query "Stacks[0].Outputs" \
-  --output table \
-  --region us-east-1
+  --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" \
+  --output text --region $AWS_REGION
 ```
 
-Note down the `ApiBaseUrl` value — you will need it in Step 4.
+Note down the `ApiBaseUrl` — you'll need it in Step 3 and Step 4.
 
 ---
 
@@ -119,83 +128,201 @@ Test customers:
   C003 — Carol White   (1 order: delivered, with return request)
 ```
 
-### Verify via AWS Console
+### Verify the API works
 
-Go to **DynamoDB → Tables → shopsmart-orders-dev → Explore items** and confirm the seeded orders are present.
-
----
-
-## Step 3 — Test the API directly
-
-Before connecting Aria, verify the API works on its own:
+Before connecting Aria, confirm the API is live:
 
 ```bash
 export API_URL=$(aws cloudformation describe-stacks \
   --stack-name shopsmart-backend \
   --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" \
-  --output text --region us-east-1)
+  --output text --region $AWS_REGION)
 
-# List orders for customer C001
 curl "$API_URL/orders?customerId=C001"
-
-# Get a specific order
 curl "$API_URL/orders/ORD-1001"
-
-# Search products
 curl "$API_URL/products?q=backpack"
-
-# Get a specific product
-curl "$API_URL/products/P001"
 ```
 
 ---
 
-## Step 4 — Add api_base_url to SSM
+## Step 3 — Create the AgentCore Gateway
 
 ### Via AWS Console
 
-1. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
-2. **Name**: `/aria/api_base_url`
-3. **Type**: String
-4. **Value**: the `ApiBaseUrl` from Step 1c
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Gateways**
+2. Click **Create gateway**
+3. **Gateway details**:
+   - **Gateway name**: `shopsmart-gateway`
+   - Expand **Additional configurations**:
+     - **Description**: `ShopSmart tool gateway — orders, products, returns`
+     - **Exception level debug**: ✅ enabled (helpful during development)
+
+4. **Inbound Auth configurations**: select **IAM**
+   > The agent's execution role signs requests to the Gateway with SigV4 —
+   > no separate JWT config needed here.
+
+5. **Permissions**:
+   - Select **Use an IAM service role**
+   - Choose **Create and use a new service role**
+
+6. **Target** — configure the ShopSmart REST API:
+   - **Target name**: `ShopSmartAPI`
+   - **Target type**: HTTP
+   - **Endpoint URL**: paste your `ApiBaseUrl` from Step 1c
+     (e.g. `https://abc123.execute-api.us-east-1.amazonaws.com/dev`)
+   - **API schema**: select **Inline** and paste the contents of
+     `modules/module-05-gateway/shopsmart-api.yaml`
+     — but first replace `<API_BASE_URL>` in the `servers.url` field with
+     your actual ApiBaseUrl
+   - **Outbound Auth**: None (API Gateway has no auth — requests from the
+     Gateway go straight through)
+
+7. Click **Create gateway**
+
+8. Note down from the gateway detail page:
+   - **Gateway ARN** — needed for Cedar policies in Module 08
+   - **Gateway endpoint URL** — needed for agent code in Step 5
+
+> **Tool naming**: AgentCore Gateway names each tool as
+> `<TargetName>___<operationId>`. With target name `ShopSmartAPI` and
+> operationId `list_orders`, the MCP tool name visible to the agent is
+> `ShopSmartAPI___list_orders`. This is what you'll reference in Cedar
+> policies in Module 08.
+
+---
+
+## Step 4 — Grant the Agent Permission to Invoke the Gateway
+
+The agent runs inside AgentCore Runtime using `AriaHarnessExecutionRole`. That
+role needs `bedrock-agentcore:InvokeGateway` permission on the Gateway,
+otherwise the `MCPClient` connection will fail with an authorization error.
+
+### Via AWS Console
+
+1. Go to **AWS Console → IAM → Roles → AriaHarnessExecutionRole**
+2. Click **Add permissions → Create inline policy**
+3. Switch to **JSON** and paste:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "bedrock-agentcore:InvokeGateway",
+      "Resource": "<GATEWAY_ARN>"
+    }
+  ]
+}
+```
+
+Replace `<GATEWAY_ARN>` with the Gateway ARN from Step 3
+(e.g. `arn:aws:bedrock-agentcore:us-east-1:<account>:gateway/shopsmart-gateway-XXXXXXXXXX`)
+
+4. **Policy name**: `Gateway_Permissions`
+5. Click **Create policy**
 
 ### Via CLI (Optional)
 
 ```bash
-export API_BASE_URL="https://<api-id>.execute-api.us-east-1.amazonaws.com/dev"
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export AWS_REGION=us-east-1
 
-API_BASE_URL=$API_BASE_URL \
-KNOWLEDGE_BASE_ID=<your-kb-id> \
-bash aria-agent/scripts/put_ssm_params.sh
+GATEWAY_ARN=$(aws bedrock-agentcore-control get-gateway \
+  --gateway-identifier <your-gateway-id> \
+  --region $AWS_REGION \
+  --query 'gatewayArn' --output text)
+
+aws iam put-role-policy \
+  --role-name AriaHarnessExecutionRole \
+  --policy-name Gateway_Permissions \
+  --policy-document "{
+    \"Version\": \"2012-10-17\",
+    \"Statement\": [{
+      \"Effect\": \"Allow\",
+      \"Action\": \"bedrock-agentcore:InvokeGateway\",
+      \"Resource\": \"${GATEWAY_ARN}\"
+    }]
+  }"
 ```
 
 ---
 
-## Step 5 — Update the Agent
+## Step 5 — Save the Gateway Endpoint to SSM
+
+### Via CLI (Optional)
+
+```bash
+export GATEWAY_ENDPOINT=<your-gateway-endpoint-url>
+
+aws ssm put-parameter \
+  --name /aria/gateway_endpoint \
+  --value "$GATEWAY_ENDPOINT" \
+  --type String \
+  --overwrite \
+  --region $AWS_REGION
+```
+
+---
+
+## Step 6 — Update the Agent
 
 ```bash
 cp modules/module-05-gateway/agent.py aria-agent/agent.py
+cp modules/module-05-gateway/config.py aria-agent/config.py
+cp modules/module-05-gateway/app.py streamlit-ui/app.py
 ```
 
 <details>
 <summary>What changed in agent.py</summary>
 
-The Module 05 agent adds five new tools that call the ShopSmart API:
-- `list_customer_orders` — fetches all orders for a customer ID
-- `get_order_details` — fetches a specific order
-- `get_product_details` — fetches a specific product
-- `search_products` — searches the product catalog by keyword or category
-- `submit_support_request` — submits a return, exchange, complaint, or inquiry
+Tools are no longer defined with `@tool` decorators in agent code. Instead,
+the agent connects to the Gateway MCP endpoint at invocation time and receives
+the full tool list dynamically.
 
-Each tool makes a plain HTTPS call to the API Gateway endpoint via `requests`.
-In a later module these calls will go through AgentCore Gateway which adds
-authentication and access controls.
+Because the Gateway uses **IAM (AWS_IAM) inbound auth**, MCP requests must be
+signed with SigV4 using the container's execution role. The
+`mcp-proxy-for-aws` library provides `aws_iam_streamablehttp_client` which
+handles the signing automatically:
+
+```python
+from mcp_proxy_for_aws.client import aws_iam_streamablehttp_client
+from strands.tools.mcp import MCPClient
+
+mcp_client = MCPClient(
+    lambda: aws_iam_streamablehttp_client(
+        endpoint=cfg.gateway_endpoint,
+        aws_region=cfg.region,
+        aws_service="bedrock-agentcore",
+    )
+)
+with mcp_client:
+    gateway_tools = mcp_client.list_tools_sync()
+    agent = Agent(
+        model=cfg.model_id,
+        tools=[retrieve_from_knowledge_base] + gateway_tools,
+    )
+    result = agent(user_message)
+```
+
+This adds `mcp-proxy-for-aws` to `requirements.txt`. The Knowledge Base tool
+is still defined locally since it calls Bedrock directly and doesn't go
+through the Gateway.
+
+</details>
+
+<details>
+<summary>What changed in config.py</summary>
+
+`api_base_url` is replaced by `gateway_endpoint` — the agent no longer calls
+the ShopSmart API directly, so it doesn't need the API URL. It only needs the
+Gateway MCP endpoint to discover and invoke tools.
 
 </details>
 
 ---
 
-## Step 6 — Rebuild and Deploy
+## Step 7 — Rebuild and Deploy
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -207,29 +334,34 @@ aws ecr get-login-password --region $AWS_REGION \
     $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
 cd aria-agent
-cp ../modules/module-05-gateway/Dockerfile .
 docker build --platform linux/arm64 -t aria-agent .
 docker tag aria-agent:latest $ECR_REPO:latest
 docker push $ECR_REPO:latest
 cd ..
 
-aws bedrock-agentcore control update-agent-runtime \
-  --agent-runtime-id <YOUR_RUNTIME_ID> \
+RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
+  --region $AWS_REGION \
+  --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
+  --output text)
+
+aws bedrock-agentcore-control update-agent-runtime \
+  --agent-runtime-id $RUNTIME_ID \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
   --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaHarnessExecutionRole" \
+  --network-configuration '{"networkMode":"PUBLIC"}' \
   --description "Module 05 — Gateway tools" \
-  --region us-east-1
+  --region $AWS_REGION
 ```
 
-Wait for the runtime status to return to **Ready** before testing.
+Wait for the runtime status to return to **Ready**.
 
 ---
 
-## Step 7 — Test
+## Step 8 — Test
 
-Try these prompts in the console Test tab or Streamlit UI:
+Try these prompts in the Streamlit UI:
 
-- `What are my orders?` — Aria asks for your customer ID
+- `What are my orders?` — Aria asks for customer ID, then lists from DynamoDB
 - `My customer ID is C001. What are my orders?`
 - `Tell me about order ORD-1001`
 - `Search for backpacks`
@@ -239,13 +371,37 @@ Try these prompts in the console Test tab or Streamlit UI:
 ---
 
 <details>
+<summary>Troubleshooting</summary>
+
+**Agent can't reach the Gateway / tools not found**
+
+- Check `/aria/gateway_endpoint` in SSM — the URL must include the full path
+- Verify the Gateway status is **Active** in the console
+- Check the agent execution role has `bedrock-agentcore:InvokeGateway`
+  permission on the gateway ARN
+
+**Gateway returns errors when calling the API**
+
+- Enable **Exception level debug** on the Gateway to see detailed error messages
+- Check CloudWatch logs under `/aws/bedrock-agentcore/gateway/`
+- Confirm the `servers.url` in the OpenAPI spec exactly matches your `ApiBaseUrl`
+
+**Tool names in errors look like `ShopSmartAPI___list_orders`**
+
+- This is expected — AgentCore Gateway prefixes tool names with the target
+  name. The agent handles this transparently via MCP.
+
+</details>
+
+<details>
 <summary>What You Learned</summary>
 
-- How to deploy a serverless backend with CloudFormation
-- How to seed DynamoDB with realistic test data
-- How to add HTTP-based tools to a Strands agent
-- How Aria can combine Knowledge Base retrieval and live API calls
-- Why externalizing the API URL to SSM matters (no redeploy to change environments)
+- How AgentCore Gateway acts as a unified MCP server for all tools
+- How to register a REST API as an HTTP Gateway target using an OpenAPI spec
+- How the Gateway parses the spec and exposes each operation as an MCP tool
+- How agents discover and call Gateway tools via MCP without hardcoded definitions
+- Why the Gateway architecture enables Policy (Module 08) and Observability
+  (Module 09) with no agent code changes
 
 </details>
 

@@ -1,0 +1,190 @@
+openapi: "3.0.0"
+info:
+  title: ShopSmart API
+  description: >
+    ShopSmart backend API — orders, products, and support requests.
+    Used as an AgentCore Gateway HTTP target so Aria can look up real
+    customer orders, search the product catalog, and submit return requests.
+  version: "1.0.0"
+
+servers:
+  - url: "https://<API_BASE_URL>"
+    description: >
+      Replace <API_BASE_URL> with your ApiBaseUrl CloudFormation output,
+      e.g. https://abc123.execute-api.us-east-1.amazonaws.com/dev
+
+paths:
+
+  /orders:
+    get:
+      operationId: list_orders
+      summary: List all orders for a customer
+      description: >
+        Returns all orders placed by the given customer ID.
+        Use when a customer asks about their order history or wants to see
+        all their current orders.
+      parameters:
+        - name: customerId
+          in: query
+          required: true
+          description: The customer ID (e.g. C001)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of orders for the customer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      type: object
+                  count:
+                    type: integer
+        "400":
+          description: Missing or invalid customerId
+
+  /orders/{orderId}:
+    get:
+      operationId: get_order
+      summary: Get full details of a specific order
+      description: >
+        Returns complete order details including status, items, tracking
+        information, and any support requests. Use when a customer asks
+        about a specific order ID.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: The order ID (e.g. ORD-1001)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Full order details
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Order not found
+
+  /products:
+    get:
+      operationId: search_products
+      summary: Search the ShopSmart product catalog
+      description: >
+        Searches products by keyword (matches name and description) or
+        filters by category. At least one of q or category must be provided.
+        Use when a customer asks to find a product or browse a category.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Search keyword to match against product name and description
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          description: "Filter by category: bags, electronics, kitchen, footwear, sports"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of matching products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      type: object
+                  count:
+                    type: integer
+        "400":
+          description: At least one of q or category is required
+
+  /products/{productId}:
+    get:
+      operationId: get_product
+      summary: Get details of a specific product
+      description: >
+        Returns full product details including name, description, price,
+        category, availability, and rating. Use when a customer asks about
+        a specific product ID.
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          description: The product ID (e.g. P001)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Full product details
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Product not found
+
+  /requests:
+    post:
+      operationId: submit_request
+      summary: Submit a support request for an order
+      description: >
+        Submits a return, exchange, complaint, or inquiry for a specific order.
+        Returns a ticket ID for tracking. Use when a customer wants to return
+        an item, raise a complaint, or submit any support request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderId
+                - requestType
+                - reason
+              properties:
+                orderId:
+                  type: string
+                  description: The order ID (e.g. ORD-1001)
+                requestType:
+                  type: string
+                  description: "One of: return, exchange, complaint, inquiry"
+                  enum: [return, exchange, complaint, inquiry]
+                reason:
+                  type: string
+                  description: Customer's reason or description of the issue
+      responses:
+        "201":
+          description: Support request submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticketId:
+                    type: string
+                  orderId:
+                    type: string
+                  requestType:
+                    type: string
+                  status:
+                    type: string
+                  submittedAt:
+                    type: string
+                  message:
+                    type: string
+        "400":
+          description: Invalid request body
+        "404":
+          description: Order not found

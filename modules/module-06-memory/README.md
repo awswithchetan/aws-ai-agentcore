@@ -28,7 +28,8 @@ aria-agent/
 | Conversation state | Stateless — each call is independent | Stateful — facts persisted to Memory |
 | Customer recognition | Customer always provides their ID | Aria recalls returning customers |
 | Cross-session recall | None | Past issues, preferences, summaries |
-| Agent lifecycle | One agent singleton shared across calls | New agent per invocation (scoped to actor) |
+| Agent lifecycle | New agent per invocation | New agent per invocation (scoped to actor) |
+| Tool routing | AgentCore Gateway (MCP) | AgentCore Gateway (MCP) — unchanged |
 
 </details>
 
@@ -232,15 +233,14 @@ Create two parameters in **Systems Manager → Parameter Store**:
 ```bash
 export MEMORY_ID=<your-memory-id>
 export MEMORY_STRATEGY_ID=<your-strategy-id>
-export KNOWLEDGE_BASE_ID=<your-existing-kb-id>
-export API_BASE_URL=<your-existing-api-url>
 
 MEMORY_ID=$MEMORY_ID \
 MEMORY_STRATEGY_ID=$MEMORY_STRATEGY_ID \
-API_BASE_URL=$API_BASE_URL \
-KNOWLEDGE_BASE_ID=$KNOWLEDGE_BASE_ID \
 bash aria-agent/scripts/put_ssm_params.sh
 ```
+
+> `knowledge_base_id` and `gateway_endpoint` are already in SSM from earlier
+> modules — no need to set them again here.
 
 ---
 
@@ -263,18 +263,21 @@ ls aria-agent/memory/
 <details>
 <summary>What changed in agent.py</summary>
 
-The key difference from Module 05 is that the agent is now **created per
-invocation** instead of being a module-level singleton:
+Tools are still discovered from the AgentCore Gateway via MCP (unchanged from
+Module 05). The key difference is that the agent is now **created per
+invocation** and given a memory session manager scoped to the customer:
 
 ```python
-# Module 05 — one agent shared across all invocations (stateless)
-agent = Agent(model=cfg.model_id, system_prompt=SYSTEM_PROMPT, tools=TOOLS)
-
-# Module 06 — new agent per invocation, scoped to customer + session
+# Module 05 — Gateway tools, no memory
 agent = Agent(
     model=cfg.model_id,
-    system_prompt=SYSTEM_PROMPT,
-    tools=TOOLS,
+    tools=[retrieve_from_knowledge_base] + gateway_tools,
+)
+
+# Module 06 — same Gateway tools + memory scoped to customer + session
+agent = Agent(
+    model=cfg.model_id,
+    tools=[retrieve_from_knowledge_base] + gateway_tools,
     session_manager=get_memory_session_manager(
         session_id=session_id,
         actor_id=customer_id,
@@ -282,8 +285,9 @@ agent = Agent(
 )
 ```
 
-This is required because memory is scoped to an `actor_id` (customer). Using a
-singleton would mix memories across different customers.
+The agent must be created per invocation (not a singleton) because memory is
+scoped to an `actor_id` (customer). A shared singleton would mix memories
+across different customers.
 
 </details>
 

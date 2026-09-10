@@ -15,10 +15,10 @@ cryptographic certainty — no more trusting whatever the client says.
 
 ```
 aria-agent/
-├── agent.py           # Updated — reads identity from JWT claims (Authorization header)
-├── config.py          # Updated — loads /aria/cognito_user_pool_id from SSM
+├── agent.py           # Updated — reads identity from JWT claims (custom id-token header)
+├── config.py          # Updated — loads /aria/cognito_* from SSM
 └── identity/
-    └── jwt.py         # NEW — decodes the Authorization header and extracts claims
+    └── jwt.py         # NEW — decodes the forwarded id token and extracts claims
 
 streamlit-ui/
 └── app.py             # Updated — Cognito login replaces Customer ID text input
@@ -30,7 +30,7 @@ streamlit-ui/
 | | Module 06 — Memory | Module 07 — Identity |
 |---|---|---|
 | Who is the customer? | Whatever the client types in the sidebar | Verified Cognito JWT — cryptographically signed |
-| Customer ID source | `payload["customer_id"]` | JWT `sub` claim, validated by AgentCore Runtime |
+| Customer ID source | `payload["customer_id"]` | JWT `custom:customer_id` claim, validated by AgentCore Runtime |
 | Customer name source | Memory only | JWT `name` claim — always accurate |
 | Trust model | Trust the client | Trust the IdP |
 | Replay/spoofing risk | High — anyone can type any ID | None — tokens expire and are signed |
@@ -42,25 +42,32 @@ streamlit-ui/
 
 ```
 Streamlit UI
-  │ 1. User logs in via Cognito hosted UI
-  │ 2. UI receives id_token (JWT) from Cognito
-  │ 3. Every invoke_agent_runtime call includes:
-  │       Authorization: Bearer <id_token>
+  │ 1. User logs in via Cognito hosted UI (with their email)
+  │ 2. UI receives access_token AND id_token from Cognito
+  │ 3. Every invocation sends:
+  │       Authorization: Bearer <access_token>            (Runtime validates this)
+  │       X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token: <id_token>  (identity claims)
   ▼
 AgentCore Runtime (Inbound JWT Authorizer)
   │ 4. Runtime fetches Cognito public keys from discovery URL
-  │ 5. Validates signature, expiry, audience, client
-  │ 6. If valid: forwards Authorization header to agent code
+  │ 5. Validates the access_token signature, expiry, and client_id
+  │ 6. If valid: forwards both headers to agent code
   │    If invalid: returns 401 — agent code never runs
   ▼
 agent.py
-  │ 7. Decodes JWT (no signature check needed — Runtime already validated)
-  │ 8. Extracts sub (= customer_id), name, email
-  │ 9. Uses sub as actor_id for memory scoping
+  │ 7. Decodes the id_token from the custom header (no signature check needed)
+  │ 8. Extracts custom:customer_id (= C001), name, email
+  │ 9. Uses custom:customer_id as actor_id for memory scoping
   │    Uses name to personalise responses
   ▼
 Response returned to Streamlit UI
 ```
+
+> **Why two tokens?** The Cognito access_token is what the Runtime validates
+> (it carries `client_id`), but it doesn't contain user profile claims. The
+> id_token carries `name`, `email`, and `custom:customer_id`. We send the
+> access_token as the Bearer for validation and the id_token in a custom header
+> so the agent can read the profile claims.
 
 </details>
 
@@ -262,26 +269,41 @@ incoming Bearer token.
 4. Configure:
    - **Authorizer type**: Custom JWT
    - **Discovery URL**: `https://cognito-idp.us-east-1.amazonaws.com/<USER_POOL_ID>/.well-known/openid-configuration`
-   - **Allowed audiences**: enter your **App client ID** from Step 1
    - **Allowed clients**: enter your **App client ID** from Step 1
-5. Under **Request header allowlist**, add `Authorization`
+5. Click **Save**
 
-   > This is what allows the JWT to be forwarded into your agent code. Without
-   > this, the Runtime strips the Authorization header after validating it.
+   > **Do NOT set Allowed audiences.** The Streamlit UI invokes the runtime
+   > using the Cognito **access token**, which has no `aud` claim (only
+   > `client_id`). If you set an allowed audience, every request fails with
+   > `Claim 'aud' value mismatch`. Validate with **Allowed clients** only.
+   >
+   > You may also see **Allowed Scopes** and **Custom Claims** fields — leave
+   > these empty for now.
 
-6. Click **Save**
+### Add the Request Headers to the Allowlist (CLI required)
 
-### Via CLI (Optional)
+The AWS Console does not currently expose the **Request header allowlist**
+setting. You must run this CLI command to allow two headers to be forwarded to
+your agent code after the Runtime validates the token:
 
-<details>
-<summary>Configure JWT authorizer via CLI</summary>
+- `Authorization` — the access token (already validated by the Runtime)
+- `X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token` — the id token, which
+  carries the `name`, `email`, and `custom:customer_id` claims that
+  `extract_identity()` reads
+
+> Without this step the Runtime validates the JWT but strips these headers
+> before they reach `agent.py` — `extract_identity()` returns anonymous and
+> Aria won't know who the customer is.
+
+Fill in your values from Step 1, then run:
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export AWS_REGION=us-east-1
 export ECR_REPO=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aria-agent
+export USER_POOL_ID=<your-user-pool-id>      # e.g. us-east-1_XXXXXXXXX
+export CLIENT_ID=<your-app-client-id>
 
-# Get current runtime ID
 RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
   --region $AWS_REGION \
   --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
@@ -292,18 +314,20 @@ aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
   --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaHarnessExecutionRole" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
-  --authorization-configuration "{
+  --authorizer-configuration "{
     \"customJWTAuthorizer\": {
       \"discoveryUrl\": \"https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/openid-configuration\",
-      \"allowedAudiences\": [\"${CLIENT_ID}\"],
       \"allowedClients\": [\"${CLIENT_ID}\"]
     }
   }" \
-  --request-header-configuration "{\"requestHeaderAllowlist\": [\"Authorization\"]}" \
+  --request-header-configuration '{"requestHeaderAllowlist": ["Authorization", "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token"]}' \
   --region $AWS_REGION
 ```
 
-</details>
+> `update-agent-runtime` is a full PUT operation — even though you configured
+> the JWT authorizer via the console, it must be re-supplied here alongside the
+> header allowlist. Both settings are applied together. Note there is **no**
+> `allowedAudience` — only `allowedClients`.
 
 ---
 
@@ -354,6 +378,7 @@ Copy the Module 07 agent files to `aria-agent/`:
 ```bash
 cp modules/module-07-identity/agent.py aria-agent/agent.py
 cp modules/module-07-identity/config.py aria-agent/config.py
+cp modules/module-07-identity/Dockerfile aria-agent/Dockerfile
 cp -r modules/module-07-identity/identity aria-agent/
 ```
 
@@ -362,14 +387,21 @@ Verify:
 ```bash
 ls aria-agent/identity/
 # jwt.py
+
+ls aria-agent/memory/
+# session.py   (carried over from Module 06)
 ```
+
+> The agent still uses Gateway tools (Module 05) and Memory (Module 06). Those
+> files (`memory/`) and the `gateway_endpoint` SSM parameter are already in
+> place — Module 07 only layers identity on top.
 
 <details>
 <summary>What changed in agent.py</summary>
 
 The Module 07 agent replaces the `payload["customer_id"]` approach with JWT
-claims extracted from the `Authorization` header. The `context` object from
-AgentCore Runtime carries the forwarded request headers:
+claims extracted from the forwarded id-token header. Tools are still discovered
+from the AgentCore Gateway via MCP (unchanged from Modules 05/06):
 
 ```python
 # Module 06 — trust the payload
@@ -378,34 +410,23 @@ customer_id = payload.get("customer_id", "anonymous")
 # Module 07 — trust the verified JWT
 from identity.jwt import extract_identity
 identity = extract_identity(context)
-customer_id = identity.customer_id   # = JWT sub claim
-customer_name = identity.name        # = JWT name claim
-customer_email = identity.email      # = JWT email claim
+customer_id = identity.customer_id   # = custom:customer_id claim (C001)
+customer_name = identity.name        # = name claim
+customer_email = identity.email      # = email claim
 ```
 
-The system prompt injection now uses the customer's actual name from the JWT
-instead of just the ID:
-
-```python
-system_prompt = SYSTEM_PROMPT + f"""
-
-## Current customer
-Customer ID: {customer_id}
-Name: {customer_name}
-Email: {customer_email}
-
-Address them by name. Use their customer ID directly with tools — do not ask for it.
-"""
-```
+The customer's `custom:customer_id` is also used as the `actor_id` for memory
+scoping, so each authenticated customer gets their own memory namespace.
 
 </details>
 
 <details>
 <summary>What identity/jwt.py does</summary>
 
-`extract_identity` reads the `Authorization` header from `context.request_headers`,
-base64-decodes the JWT payload (no signature check — the Runtime already validated it),
-and returns a typed `CustomerIdentity` object:
+`extract_identity` reads the id_token from the
+`X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token` header (forwarded by the
+Runtime), base64-decodes the JWT payload (no signature check — the Runtime
+already validated the access token), and returns a typed `CustomerIdentity`:
 
 ```python
 @dataclass
@@ -417,12 +438,14 @@ class CustomerIdentity:
 
 def extract_identity(context) -> CustomerIdentity:
     headers = getattr(context, "request_headers", {}) or {}
-    auth = headers.get("Authorization") or headers.get("authorization", "")
-    if not auth.startswith("Bearer "):
+    id_token = (
+        headers.get("X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token")
+        or headers.get("x-amzn-bedrock-agentcore-runtime-custom-id-token", "")
+    )
+    if not id_token:
         return ANONYMOUS
-    token = auth.split(" ", 1)[1]
-    # Decode without verification — Runtime already validated the signature
-    claims = json.loads(base64.b64decode(token.split(".")[1] + "=="))
+    # Decode without verification — Runtime already validated the access token
+    claims = json.loads(base64.urlsafe_b64decode(id_token.split(".")[1] + "=="))
     return CustomerIdentity(
         # custom:customer_id is set to C001/C002/C003 at user creation
         # Falls back to sub (Cognito UUID) if the attribute is missing
@@ -452,7 +475,14 @@ The manual Customer ID text input is replaced by a **Cognito login flow**:
 - Clicking it redirects to the Cognito Hosted UI login page
 - After login, Cognito redirects back to Streamlit with an authorization code
 - Streamlit exchanges the code for an `id_token` (JWT)
-- Every `invoke_agent_runtime` call now sends `Authorization: Bearer <id_token>`
+- Every invocation sends `Authorization: Bearer <id_token>` directly over HTTPS
+
+> **Why HTTPS instead of Boto3?**
+> When a runtime is configured with a JWT authorizer, Boto3's
+> `invoke_agent_runtime` cannot pass a Bearer token — it only supports SigV4
+> signing. Invocations must be made via plain HTTPS to the AgentCore endpoint
+> so the `Authorization` header can be included.
+
 - The sidebar shows the logged-in customer's name and email from the token claims
 - A **Sign out** button clears the token and redirects to Cognito's logout endpoint
 
@@ -513,14 +543,18 @@ Open `http://localhost:8501`.
 
 1. Click **Sign in with ShopSmart** in the sidebar
 2. You are redirected to the Cognito Hosted UI
-3. Log in as `C001` / `ShopSmart1!`
+3. Log in as `alice@example.com` / `ShopSmart1!`
 4. You are redirected back to Streamlit — the sidebar now shows **Alice Johnson**
 5. Send a message: `Hi!` — Aria should greet Alice by name immediately
 
+> Customers log in with their **email address** (the Cognito sign-in
+> identifier), not their customer ID. The `custom:customer_id` attribute
+> (`C001`) is carried inside the token and used internally to look up orders.
+
 ### Verify the token is being validated
 
-To confirm the Runtime is rejecting unauthenticated requests, try invoking
-without a token:
+To confirm the Runtime rejects unauthenticated requests, invoke the HTTPS
+endpoint without a Bearer token:
 
 ```bash
 RUNTIME_ARN=$(aws bedrock-agentcore-control list-agent-runtimes \
@@ -528,21 +562,26 @@ RUNTIME_ARN=$(aws bedrock-agentcore-control list-agent-runtimes \
   --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeArn" \
   --output text)
 
-# This should return 401 Unauthorized
-aws bedrock-agentcore invoke-agent-runtime \
-  --agent-runtime-arn $RUNTIME_ARN \
-  --runtime-session-id "test-no-auth" \
-  --payload '{"prompt":"hello"}' \
-  --region us-east-1
+ESCAPED_ARN=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$RUNTIME_ARN")
+
+# No Authorization header → should return 401 Unauthorized
+curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+  "https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/${ESCAPED_ARN}/invocations?qualifier=DEFAULT" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"hello"}'
 ```
+
+> Note: you cannot test this with `aws bedrock-agentcore invoke-agent-runtime`
+> (Boto3) — once the runtime uses a JWT authorizer, Boto3's SigV4 signing is
+> rejected with an authorization-method-mismatch error, not a clean 401.
 
 ### Test all three customers
 
-| Login | Expected greeting |
+| Login (email) | Expected greeting |
 |---|---|
-| `C001` / `ShopSmart1!` | "Hi Alice! How can I help you?" |
-| `C002` / `ShopSmart1!` | "Hi Bob! How can I help you?" |
-| `C003` / `ShopSmart1!` | "Hi Carol! How can I help you?" |
+| `alice@example.com` / `ShopSmart1!` | "Hi Alice! How can I help you?" |
+| `bob@example.com` / `ShopSmart1!` | "Hi Bob! How can I help you?" |
+| `carol@example.com` / `ShopSmart1!` | "Hi Carol! How can I help you?" |
 
 ---
 
@@ -553,15 +592,28 @@ aws bedrock-agentcore invoke-agent-runtime \
 
 - Check the JWT authorizer discovery URL in the Runtime config — it must include
   `/.well-known/openid-configuration` at the end.
-- Check that the `allowedAudiences` and `allowedClients` match the App Client ID
-  exactly (copy-paste, no trailing spaces).
+- Check that `allowedClients` matches the App Client ID exactly (copy-paste, no
+  trailing spaces).
 
-**`Authorization` header not reaching agent code**
+**`Claim 'aud' value mismatch with configuration`**
 
-- Confirm `Authorization` is in the **Request header allowlist** on the Runtime.
-  Without this, the Runtime strips the header after validation.
-- Check CloudWatch logs for `extract_identity` — look for `"customer_id": "anonymous"`
-  which means the header arrived empty.
+- The authorizer has `allowedAudience` set, but the Cognito access token has no
+  `aud` claim. Remove `allowedAudience` and validate with `allowedClients` only
+  (re-run the Step 3 CLI command).
+
+**`Claim 'client_id' value mismatch`**
+
+- The Streamlit UI is sending the id_token as the Bearer instead of the
+  access_token. The access_token carries `client_id`; the id_token does not.
+  Confirm the UI uses `access_token` for the `Authorization` header.
+
+**Identity claims not reaching agent code (Aria doesn't know the name)**
+
+- Confirm the `--request-header-configuration` includes both `Authorization`
+  and `X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token`. The console does not
+  expose this — it must be set via CLI.
+- Check CloudWatch logs for `extract_identity` — `customer_id=anonymous` means
+  the id-token header arrived empty.
 
 **Cognito redirect loop / callback URL mismatch**
 
@@ -589,9 +641,10 @@ aws bedrock-agentcore invoke-agent-runtime \
 
 - How AgentCore's inbound JWT authorizer validates tokens before your agent code runs
 - How to configure a Cognito User Pool as the identity provider for AgentCore Runtime
-- How the `Authorization` header allowlist works and why it's required
-- How to extract verified identity claims from the forwarded JWT in agent code
-- Why `sub` (not `email` or `name`) is the stable identifier to use as `actor_id`
+- How the request header allowlist works and why both the access token and id token are forwarded
+- Why the access token is used for validation (has `client_id`) while the id token carries profile claims
+- How to extract verified identity claims from the forwarded id token in agent code
+- Why `custom:customer_id` is used as `actor_id` so it matches the DynamoDB customer records
 - How the Streamlit authorization code flow works with Cognito Hosted UI
 - The difference between inbound auth (who can call the agent) and outbound auth (what the agent can call)
 

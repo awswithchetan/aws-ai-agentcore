@@ -81,13 +81,12 @@ cognito = load_cognito_config()
 
 REDIRECT_URI = "http://localhost:8501"
 
-# ── AWS client ────────────────────────────────────────────────────────────────
+# ── AgentCore endpoint ────────────────────────────────────────────────────────
+# When the runtime is configured with a JWT authorizer, Boto3 cannot pass a
+# Bearer token — invocation must be made over plain HTTPS using the requests
+# library. SigV4-signed Boto3 calls are only used when there is no JWT auth.
 
-@st.cache_resource
-def get_agentcore_client():
-    return boto3.client("bedrock-agentcore", region_name=REGION)
-
-client = get_agentcore_client()
+AGENTCORE_BASE_URL = f"https://bedrock-agentcore.{REGION}.amazonaws.com"
 
 # ── JWT helpers ───────────────────────────────────────────────────────────────
 
@@ -107,7 +106,9 @@ if "session_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "id_token" not in st.session_state:
-    st.session_state.id_token = None
+    st.session_state.id_token = None        # used for reading user claims (name, email, custom:customer_id)
+if "access_token" not in st.session_state:
+    st.session_state.access_token = None    # used for invoking the runtime (has client_id claim)
 if "user_claims" not in st.session_state:
     st.session_state.user_claims = {}
 
@@ -131,7 +132,11 @@ if "code" in query_params and not st.session_state.id_token:
         )
         resp.raise_for_status()
         tokens = resp.json()
+        # id_token: used to read user identity claims (name, email, custom:customer_id)
+        # access_token: used to invoke the runtime — contains the client_id claim
+        #               that AgentCore's JWT authorizer validates against allowedClients
         st.session_state.id_token = tokens.get("id_token")
+        st.session_state.access_token = tokens.get("access_token")
         if st.session_state.id_token:
             st.session_state.user_claims = decode_jwt_payload(st.session_state.id_token)
         # Clear the code from the URL to avoid re-exchanging on refresh
@@ -167,32 +172,52 @@ if not st.session_state.messages:
 # ── Invoke function ───────────────────────────────────────────────────────────
 
 def invoke_aria(prompt: str) -> str:
-    """Invoke Aria via AgentCore Runtime, passing the JWT as a Bearer token."""
+    """Invoke Aria via AgentCore Runtime HTTPS endpoint, passing the JWT as a Bearer token.
+
+    Boto3 does not support passing a Bearer token to invoke_agent_runtime — it
+    only uses SigV4 signing. When the runtime is configured with a JWT
+    authorizer, the invocation must go over plain HTTPS with an Authorization
+    header.
+
+    The access_token (not id_token) is used here because AgentCore's JWT
+    authorizer validates the client_id claim against allowedClients — that
+    claim is only present in the access_token. The id_token is used separately
+    to read user identity claims (name, email) for display purposes.
+    """
+    if not st.session_state.access_token:
+        return "Please sign in to chat with Aria."
+
     payload = {"prompt": prompt}
 
-    invoke_kwargs = dict(
-        agentRuntimeArn=RUNTIME_ARN,
-        runtimeSessionId=st.session_state.session_id,
-        payload=json.dumps(payload),
-    )
+    # URL-encode the runtime ARN for use in the path
+    escaped_arn = urllib.parse.quote(RUNTIME_ARN, safe="")
+    url = f"{AGENTCORE_BASE_URL}/runtimes/{escaped_arn}/invocations?qualifier=DEFAULT"
 
-    # Pass the JWT as Authorization header if logged in.
-    # The Runtime validates it and forwards it to agent code.
-    if st.session_state.id_token:
-        invoke_kwargs["requestMetadata"] = {
-            "headers": {"Authorization": f"Bearer {st.session_state.id_token}"}
-        }
+    headers = {
+        "Authorization": f"Bearer {st.session_state.access_token}",
+        # Pass the id_token as a custom header so agent.py can extract
+        # identity claims (name, email, custom:customer_id) from it.
+        # The Authorization header carries the access_token which contains
+        # the client_id claim that AgentCore's JWT authorizer validates.
+        "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token": st.session_state.id_token or "",
+        "Content-Type": "application/json",
+        "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": st.session_state.session_id,
+    }
 
     try:
-        response = client.invoke_agent_runtime(**invoke_kwargs)
-        result = json.loads(response["response"].read())
+        resp = http_requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+        if resp.status_code == 401:
+            # Show the raw error before logging out so we can debug
+            return f"[401 Unauthorized] Response body: {resp.text[:500]}"
+        if not resp.ok:
+            return f"[HTTP {resp.status_code}] Response body: {resp.text[:500]}"
+        result = resp.json()
         return result.get("result", "Sorry, I could not process your request.")
-    except client.exceptions.UnauthorizedException:
-        # Token may have expired — prompt re-login
-        st.session_state.id_token = None
-        st.session_state.user_claims = {}
-        st.warning("Your session has expired. Please sign in again.")
-        st.rerun()
     except Exception as e:
         return f"Unable to reach Aria right now. Please try again. ({str(e)})"
 
@@ -234,6 +259,7 @@ with st.sidebar:
                 f"&logout_uri={urllib.parse.quote(REDIRECT_URI)}"
             )
             st.session_state.id_token = None
+            st.session_state.access_token = None
             st.session_state.user_claims = {}
             st.session_state.messages = []
             st.session_state.session_id = str(uuid.uuid4())

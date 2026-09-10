@@ -79,34 +79,33 @@ def extract_identity(context) -> CustomerIdentity:
     """
     Extract customer identity from the AgentCore Runtime request context.
 
-    Reads the Authorization header forwarded by the Runtime, decodes the
-    JWT payload, and returns a CustomerIdentity. Returns ANONYMOUS if no
-    valid Bearer token is present.
+    AgentCore Runtime validates the access_token in the Authorization header.
+    The id_token (which carries name, email, custom:customer_id) is forwarded
+    separately in X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token so that
+    identity claims can be read without interfering with token validation.
 
     Args:
         context: AgentCore Runtime RequestContext — carries request headers
 
     Returns:
-        CustomerIdentity with sub, name, email from the JWT claims
+        CustomerIdentity with customer_id, name, email from the id_token claims
     """
     headers: dict = getattr(context, "request_headers", {}) or {}
 
-    # Header names are case-insensitive
-    auth = headers.get("Authorization") or headers.get("authorization", "")
+    # Read the id_token from the custom header (set by the Streamlit UI)
+    id_token = (
+        headers.get("X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token")
+        or headers.get("x-amzn-bedrock-agentcore-runtime-custom-id-token", "")
+    )
 
-    if not auth.startswith("Bearer "):
+    if not id_token:
         logger.warning(
-            "No Bearer token in Authorization header — returning anonymous identity. "
-            "Check that 'Authorization' is in the Runtime request header allowlist."
+            "No id_token in X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token header "
+            "— returning anonymous identity. Check the Runtime request header allowlist."
         )
         return ANONYMOUS
 
-    token = auth.split(" ", 1)[1].strip()
-    if not token:
-        logger.warning("Empty Bearer token — returning anonymous identity.")
-        return ANONYMOUS
-
-    claims = _decode_jwt_payload(token)
+    claims = _decode_jwt_payload(id_token)
     if not claims:
         return ANONYMOUS
 

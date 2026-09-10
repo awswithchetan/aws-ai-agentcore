@@ -1,5 +1,5 @@
 # Aria — ShopSmart AI Customer Support Agent
-# Module 06: Memory — adds memory/ directory for persistent customer memory
+# Module 07: Identity — adds identity/ directory for JWT claim extraction
 # Multi-stage build for a lean production image.
 
 # ── Stage 1: dependency builder ───────────────────────────────────────────────
@@ -19,12 +19,13 @@ WORKDIR /app
 
 COPY --from=builder /install /usr/local
 
-# Copy agent source — Module 06 adds memory/ for AgentCore Memory integration
+# Copy agent source — Module 07 adds identity/ for JWT claim extraction
 COPY --chown=aria:aria agent.py .
 COPY --chown=aria:aria config.py .
 COPY --chown=aria:aria tools/    tools/
 COPY --chown=aria:aria policies/ policies/
 COPY --chown=aria:aria memory/   memory/
+COPY --chown=aria:aria identity/ identity/
 
 USER aria
 

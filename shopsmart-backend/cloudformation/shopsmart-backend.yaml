@@ -395,7 +395,7 @@ Resources:
 Outputs:
 
   ApiBaseUrl:
-    Description: ShopSmart API base URL
+    Description: ShopSmart API base URL (used as AgentCore Gateway HTTP target)
     Value: !Sub "https://${ShopSmartApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
     Export:
       Name: !Sub "ShopSmartApiBaseUrl-${Environment}"

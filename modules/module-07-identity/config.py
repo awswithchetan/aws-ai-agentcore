@@ -8,7 +8,7 @@ SSM Parameters (all under /aria/):
   /aria/knowledge_base_id     — Bedrock Knowledge Base ID
   /aria/kb_num_results        — Number of KB chunks per query
   /aria/region                — AWS region
-  /aria/api_base_url          — ShopSmart API base URL
+  /aria/gateway_endpoint      — AgentCore Gateway MCP endpoint URL
   /aria/memory_id             — AgentCore Memory resource ID
   /aria/memory_strategy_id    — AgentCore Memory strategy ID
   /aria/cognito_user_pool_id  — NEW: Cognito User Pool ID (for Streamlit UI)
@@ -35,7 +35,7 @@ _DEFAULTS = {
     "knowledge_base_id": "",
     "kb_num_results": "5",
     "region": "us-east-1",
-    "api_base_url": "",
+    "gateway_endpoint": "",
     "memory_id": "",
     "memory_strategy_id": "",
     "cognito_user_pool_id": "",
@@ -99,7 +99,7 @@ class AgentConfig:
         self.model_id: str = _resolve("model_id", ssm)
         self.knowledge_base_id: str = _resolve("knowledge_base_id", ssm)
         self.kb_num_results: int = int(_resolve("kb_num_results", ssm))
-        self.api_base_url: str = _resolve("api_base_url", ssm).rstrip("/")
+        self.gateway_endpoint: str = _resolve("gateway_endpoint", ssm).rstrip("/")
         self.memory_id: str = _resolve("memory_id", ssm)
         self.memory_strategy_id: str = _resolve("memory_strategy_id", ssm)
         # Cognito — used by Streamlit UI, not by agent code directly
@@ -119,7 +119,7 @@ class AgentConfig:
             )
         for name, value in [
             ("knowledge_base_id", self.knowledge_base_id),
-            ("api_base_url", self.api_base_url),
+            ("gateway_endpoint", self.gateway_endpoint),
             ("memory_id", self.memory_id),
             ("memory_strategy_id", self.memory_strategy_id),
             ("cognito_user_pool_id", self.cognito_user_pool_id),
@@ -135,7 +135,7 @@ class AgentConfig:
             f"region={self.region!r}, "
             f"model_id={self.model_id!r}, "
             f"knowledge_base_id={'<set>' if self.knowledge_base_id else '<not set>'}, "
-            f"api_base_url={'<set>' if self.api_base_url else '<not set>'}, "
+            f"gateway_endpoint={'<set>' if self.gateway_endpoint else '<not set>'}, "
             f"memory_id={'<set>' if self.memory_id else '<not set>'}, "
             f"cognito_user_pool_id={'<set>' if self.cognito_user_pool_id else '<not set>'}"
             f")"
