@@ -1,394 +1,268 @@
-# Module 00 — Prerequisites & Setup
+# Module 00 — Prerequisites
 
-This module covers everything you need to install and configure before building Aria. Follow the steps for your operating system.
+## Overview
 
----
+This module prepares your local workstation and AWS account before you build
+Aria, ShopSmart’s customer-support agent. It follows a simple setup flow:
 
-## What You Will Set Up
+1. Prepare a Linux, macOS, or Ubuntu (Windows/WSL2) workstation.
+2. Install the local tools with the supplied script.
+3. Configure and verify AWS CLI access.
+4. Confirm Bedrock model access and Python dependencies.
 
-- Python 3.11+
+The installer in this directory installs local software only. It does **not**
+create AWS resources, IAM users, AgentCore resources, or course infrastructure.
+
+## Prerequisites
+
+### 1. AWS account
+
+You need an AWS account with permission to use Amazon Bedrock AgentCore and to create the course resources. The course creates CloudFormation stacks, Lambda
+functions, DynamoDB tables, API Gateway resources, Cognito resources, S3 buckets, ECR resources, IAM roles, AgentCore resources, and CloudWatch logs.
+
+For learning purposes, an administrator identity is the simplest option. For a shared or production account, use a dedicated identity with least-privilege
+permissions instead. Never commit access keys or place them in the repository.
+
+### 2. Local workstation
+
+Supported setup options:
+
+- Linux: Ubuntu/Debian or Amazon Linux/RHEL-like distributions.
+- macOS: Intel or Apple Silicon.
+- Windows: WSL2 with Ubuntu is recommended. Run the commands from the WSL2
+  terminal, not from Windows PowerShell.
+
+Windows users can install WSL2 from an elevated PowerShell prompt:
+
+```powershell
+wsl --install -d Ubuntu --name "<name-of-your-vm>"
+```
+
+To connect to your VM (anytime later):
+
+```bash
+wsl -d <name-of-your-vm>
+```
+
+### 3. Required tools
+
+The installer checks or installs:
+
+- Git
+- Python 3.11 or newer and `venv`
 - AWS CLI v2
-- Docker Desktop
+- Docker Engine or Docker Desktop
+- `curl`, `unzip`, and `jq`
 - AgentCore CLI
-- VS Code
-- AWS account and IAM permissions
-- Verify everything works
+- Course Python dependencies, including Boto3, Streamlit, and AgentCore SDKs
 
----
+## Step 1 — Clone the repository
 
-## 1. Python 3.11+
-
-### macOS
+Clone the repository and enter its root directory:
 
 ```bash
-# Check if Python is already installed
-python3 --version
-
-# Install via Homebrew (recommended)
-# First install Homebrew if not already installed
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install Python
-brew install python@3.11
-
-# Verify
-python3 --version
+git clone https://github.com/awswithchetan/aws-ai-agentcore.git
+cd aws-ai-agentcore
 ```
 
-### Ubuntu (Linux)
+If you already cloned it, update it instead:
 
 ```bash
-# Check if Python is already installed
-python3 --version
-
-# Update package list
-sudo apt update
-
-# Install Python 3.11
-sudo apt install -y python3.11 python3.11-venv python3.11-pip
-
-# Set python3.11 as default (optional)
-sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
-
-# Verify
-python3 --version
+git pull
 ```
 
----
+## Step 2 — Install the required tools
 
-## 2. AWS CLI v2
-
-### macOS
+Run the installer from the repository root:
 
 ```bash
-# Download and install
-curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
-sudo installer -pkg AWSCLIV2.pkg -target /
-
-# Verify
-aws --version
-
-# Clean up
-rm AWSCLIV2.pkg
+bash modules/module-00-prerequisites/install-prerequisites.sh
 ```
 
-### Ubuntu (Linux)
+The script detects macOS or Linux and is safe to rerun. It installs local packages, creates `.venv`, installs the root `requirements.txt`, installs the
+agent/Browser dependencies, and installs the AgentCore CLI.
+
+### Docker notes
+
+On macOS, the script installs Docker Desktop if Docker is missing. Open Docker Desktop and wait until the daemon is running before building containers.
+
+On Linux, the script installs and starts Docker Engine. If your user is added to the `docker` group, log out and back in or run:
 
 ```bash
-# Download and install
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
-
-# Verify
-aws --version
-
-# Clean up
-rm -rf awscliv2.zip aws/
+newgrp docker
 ```
 
----
+On an x86_64 host, AgentCore Runtime container builds target ARM64. Register QEMU/binfmt before the first ARM64 build:
 
-## 3. Configure AWS Credentials
+```bash
+docker run --privileged --rm tonistiigi/binfmt --install arm64
+```
 
-You need an AWS account with appropriate permissions. If you don't have one, create a free account at [aws.amazon.com](https://aws.amazon.com).
+Verify that Docker is usable without `sudo`:
 
-### Using an Existing AWS Admin User (Recommended for Most Learners)
+```bash
+docker version
+docker info
+docker run --rm hello-world
+```
 
-If you already have an AWS account with an admin user configured, you can skip IAM user creation entirely. Just verify your credentials are active:
+## Step 3 — Activate the Python environment
+
+The installer creates `.venv` in the repository root. Activate it whenever you
+open a new terminal:
+
+```bash
+source .venv/bin/activate
+```
+
+You should see `(.venv)` in your shell prompt. Verify the key Python tools:
+
+```bash
+python --version
+pip --version
+streamlit --version
+agentcore --version
+```
+
+If the environment is not setup by the installer, you can set it up manually:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -r aria-agent/requirements.txt
+python -m pip install amazon-bedrock-agentcore-cli
+```
+
+## Step 4 — Configure AWS CLI access
+
+If you already have working AWS credentials, verify them first:
 
 ```bash
 aws sts get-caller-identity
 ```
 
-If this returns your account details, you're good to go — proceed to **Configure AWS CLI** below.
-
----
-
-<details>
-<summary>Create a Dedicated IAM User (Optional — Best Practice)</summary>
-
-If you want a dedicated user with scoped permissions for this course rather than using your admin account:
-
-1. Go to **AWS Console → IAM → Users → Create User**
-2. Username: `agentcore-dev`
-3. Attach policies:
-   - `AmazonBedrockFullAccess`
-   - `AmazonDynamoDBFullAccess`
-   - `AWSLambda_FullAccess`
-   - `AmazonAPIGatewayAdministrator`
-   - `AmazonCognitoPowerUser`
-   - `AmazonS3FullAccess`
-   - `CloudWatchFullAccess`
-   - `AmazonEC2ContainerRegistryFullAccess`
-   - `IAMFullAccess` *(needed for CloudFormation to create roles)*
-4. Create access key → **Application running outside AWS**
-5. Note down **Access Key ID** and **Secret Access Key**
-
-> **Note**: For a production environment you would use more granular permissions. For this course, these policies keep setup simple.
-
-</details>
-
-### Configure AWS CLI
+If that command fails, configure a profile:
 
 ```bash
 aws configure
 ```
 
-You will be prompted for:
-```
+Provide:
+
+```text
 AWS Access Key ID:     <your-access-key-id>
 AWS Secret Access Key: <your-secret-access-key>
 Default region name:   us-east-1
 Default output format: json
 ```
 
-### Verify AWS CLI is Working
+Verify the identity and select the course Region:
 
 ```bash
 aws sts get-caller-identity
+export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION="$AWS_REGION"
 ```
 
-Expected output:
-```json
-{
-    "UserId": "AIDA...",
-    "Account": "123456789012",
-    "Arn": "arn:aws:iam::123456789012:user/agentcore-dev"
-}
-```
+> The course examples use `us-east-1`. AgentCore Browser, Runtime, Bedrock models, and other services must be available in the Region you select. Keep one Region consistently throughout the course.
 
----
+## Step 5 — Confirm Bedrock model access
 
-## 4. Amazon Bedrock Model Access
+The course uses Anthropic Claude through Amazon Bedrock. Model availability and first-time-use requirements vary by account and Region.
 
-Access to Amazon Bedrock foundation models is **enabled by default** — no manual toggle needed. However, for **Anthropic models (Claude)**, AWS requires a one-time use case form the first time you use them in your account.
-
-### Complete the Anthropic First Time Use (FTU) Form
-
-1. Go to **AWS Console → Amazon Bedrock → Model catalog** (ensure region is `us-east-1`)
-2. Search for **Claude 3.5 Sonnet** and open it
-3. If prompted, fill in the use case form:
-   - **Intended use**: "Learning and building AI agents with Amazon Bedrock AgentCore"
-   - **Website**: Your GitHub profile, LinkedIn, or personal website URL
-4. Submit — access is granted immediately
-
-> This is a one-time step per AWS account. If your account has used Claude before, you can skip this entirely.
-
-<details>
-<summary>IAM permissions required for model access</summary>
-
-Your IAM user must have AWS Marketplace permissions for automatic model access to work. These are included if you attached `AmazonBedrockFullAccess` in the previous step. Verify with:
+1. Open the **Amazon Bedrock** console for your AWS region.
+2. Open **Model catalog** and locate the Claude model used by the course.
+3. Complete any first-time-use or model-access request shown by the console.
+4. Confirm your identity can list foundation models:
 
 ```bash
 aws bedrock list-foundation-models \
-  --region us-east-1 \
-  --query "modelSummaries[?contains(modelId,'claude-3-5-sonnet')].[modelId]" \
+  --region "$AWS_REGION" \
+  --query "modelSummaries[?contains(modelId,'claude')].[modelId,providerName]" \
   --output table
 ```
 
-If this command returns results without error, you're good to go.
+A successful command confirms API access. It does not guarantee that every specific model invocation is permitted; test the selected model when you reach
+Module 02.
 
-</details>
+## Step 6 — Verify the complete setup
 
----
-
-## 5. Docker Desktop
-
-AgentCore Runtime supports two deployment methods — **Code Zip** (no Docker needed) and **Container Image** (requires Docker). This course primarily uses Code Zip deployment which is simpler and requires no Docker knowledge.
-
-Install Docker if you want to explore container-based deployment in the advanced modules, or skip this step for now.
-
-First, check if Docker is already installed:
+Run this checklist from the activated virtual environment:
 
 ```bash
+python --version                 # 3.11+
+aws --version                    # AWS CLI v2
+aws sts get-caller-identity      # account and identity
+
+git --version
 docker --version
-docker ps
-```
-
-If both commands return without error, Docker is already installed — skip to Step 6.
-
-### macOS
-
-1. Download Docker Desktop from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/)
-2. Open the `.dmg` file and drag Docker to Applications
-3. Launch Docker Desktop and wait for it to start (whale icon in menu bar)
-
-```bash
-# Verify
-docker --version
-docker ps
-```
-
-### Ubuntu (Linux / WSL)
-
-```bash
-# Install Docker Engine
-sudo apt update
-sudo apt install -y ca-certificates curl gnupg
-
-# Add Docker's official GPG key
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-# Add Docker repository
-echo \
-  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu \
-  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Install Docker
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin
-
-# Add your user to docker group (so you don't need sudo)
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Start Docker service
-sudo systemctl enable docker
-sudo systemctl start docker
-
-# Verify
-docker --version
-docker ps
-```
-
-<details>
-<summary>WSL note</summary>
-
-If `sudo systemctl start docker` fails in WSL, use this instead:
-```bash
-sudo service docker start
-```
-
-</details>
-
----
-
-## 6. VS Code
-
-### macOS
-
-```bash
-# Install via Homebrew
-brew install --cask visual-studio-code
-
-# Or download from https://code.visualstudio.com
-```
-
-### Ubuntu (Linux)
-
-```bash
-# Install via snap
-sudo snap install --classic code
-
-# Or via apt
-wget -qO- https://packages.microsoft.com/keys/microsoft.asc | \
-  gpg --dearmor > packages.microsoft.gpg
-sudo install -D -o root -g root -m 644 packages.microsoft.gpg \
-  /etc/apt/keyrings/packages.microsoft.gpg
-echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] \
-  https://packages.microsoft.com/repos/code stable main" | \
-  sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
-sudo apt update
-sudo apt install -y code
-```
-
-### Recommended VS Code Extensions
-
-Install these from the Extensions panel (`Ctrl+Shift+X` / `Cmd+Shift+X`):
-
-- **Python** (Microsoft)
-- **AWS Toolkit** (Amazon Web Services)
-- **YAML** (Red Hat)
-- **Docker** (Microsoft)
-
----
-
-## 7. Python Virtual Environment & Dependencies
-
-A virtual environment keeps this project's Python packages isolated from the rest of your system. Create it once and activate it every time you work on the project.
-
-```bash
-# Navigate to the repo root
-cd /home/chetan/aws-ai-agentcore   # adjust path if different
-
-# Create the virtual environment
-python3 -m venv .venv
-
-# Activate it — you'll see (.venv) appear in your terminal prompt
-source .venv/bin/activate          # macOS / Linux / WSL
-
-# Install all course dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-> **Every time you open a new terminal**, activate the environment before running any Python commands:
-> ```bash
-> source .venv/bin/activate
-> ```
-> You'll know it's active when you see `(.venv)` at the start of your terminal prompt.
-
----
-
-## 8. Verify AgentCore CLI
-
-```bash
+docker info
+streamlit --version
 agentcore --version
+
+python -c "import boto3, bedrock_agentcore, strands; print('Python dependencies OK')"
 ```
 
-If this returns a version number, the CLI is installed and working. You will create your first harness in Module 02.
+If Docker is not needed for your current path, `docker info` may be skipped;
+Module 04 and later container deployment instructions require it.
 
----
+## Setup checklist
 
-## 9. Verification Checklist
+| Item | Required | Verified |
+|---|---:|---:|
+| AWS account and permissions | Yes | ☐ |
+| AWS CLI v2 and credentials | Yes | ☐ |
+| Region selected consistently | Yes | ☐ |
+| Bedrock Claude access | Yes | ☐ |
+| Python 3.11+ and virtual environment | Yes | ☐ |
+| AgentCore CLI | Yes | ☐ |
+| Docker running | Module 04+ container path | ☐ |
+| Git | Yes | ☐ |
+| VS Code | Recommended | ☐ |
 
-Run through this checklist before moving to Module 02:
+## Troubleshooting
+
+### `aws sts get-caller-identity` fails
+
+Run `aws configure`, confirm the selected profile with
+`echo "$AWS_PROFILE"`, and verify the credentials belong to the intended AWS
+account.
+
+### Docker permission denied on Linux
+
+Run `newgrp docker`, start the service with `sudo systemctl start docker`, or
+log out and back in after the installer adds your user to the Docker group.
+
+### Docker `exec format error` during an ARM64 build
+
+Register binfmt/QEMU and bootstrap Buildx:
 
 ```bash
-# Python
-python3 --version          # Should be 3.11+
-
-# AWS CLI
-aws --version              # Should be 2.x
-aws sts get-caller-identity  # Should return your account details
-
-# Docker
-docker --version           # Should be 24+
-docker ps                  # Should return empty list (not an error)
-
-# Streamlit
-streamlit --version        # Should return version number
-
-# Bedrock model access (should return without error)
-aws bedrock list-foundation-models \
-  --region us-east-1 \
-  --query "modelSummaries[?contains(modelId,'claude')].[modelId]" \
-  --output table
-# Should return Claude model IDs
+docker run --privileged --rm tonistiigi/binfmt --install arm64
+docker buildx inspect --bootstrap
 ```
 
----
+### `agentcore` is not found
 
-## Summary
+Activate `.venv` and reinstall the CLI:
 
-| Tool | Purpose | Verified |
-|------|---------|---------|
-| Python 3.11+ | Agent code, Lambda, Streamlit UI | ☐ |
-| AWS CLI v2 | Deploy and manage AWS resources | ☐ |
-| AWS credentials | Authenticate with AWS | ☐ |
-| Bedrock model access | Anthropic FTU form (one-time, first-time accounts only) | ☐ |
-| Docker | Required only if deploying agents as container images (advanced modules) | ☐ |
-| VS Code | IDE | ☐ |
-| Python venv + deps | Isolated Python environment | ☐ |
+```bash
+source .venv/bin/activate
+python -m pip install amazon-bedrock-agentcore-cli
+```
 
----
+### Python dependency installation fails
 
-## Next Step
+Confirm Python is 3.11+, upgrade pip, and rerun the installer from the
+repository root:
 
-Proceed to [Module 02 — Your First Agent with Harness](../module-02-harness/README.md)
+```bash
+python -m pip install --upgrade pip
+bash modules/module-00-prerequisites/install-prerequisites.sh
+```
+
+## Next step
+
+Proceed to [Module 02 — Your First Agent with Harness](../module-02-harness/README.md).

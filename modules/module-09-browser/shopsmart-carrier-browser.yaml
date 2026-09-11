@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ShopSmart simulated carrier tracking website. Creates a private S3 bucket
+  served through CloudFront with Origin Access Control. Upload the static site
+  assets after the stack is created.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment
+
+Resources:
+  CarrierWebsiteBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: SimulatedCarrierWebsite
+
+  CarrierWebsiteOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "shopsmart-carrier-oac-${Environment}"
+        Description: Allow the ShopSmart CloudFront distribution to read the private carrier site bucket
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CarrierWebsiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "ShopSmart simulated carrier tracking site (${Environment})"
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: CarrierWebsiteS3Origin
+            DomainName: !GetAtt CarrierWebsiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CarrierWebsiteOriginAccessControl.Id
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: CarrierWebsiteS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          ForwardedValues:
+            QueryString: true
+            Cookies:
+              Forward: none
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+      Tags:
+        - Key: Project
+          Value: ShopSmart
+        - Key: Environment
+          Value: !Ref Environment
+
+  CarrierWebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CarrierWebsiteBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${CarrierWebsiteBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${CarrierWebsiteDistribution}"
+
+Outputs:
+  WebsiteBucketName:
+    Description: Private S3 bucket for the simulated carrier website assets
+    Value: !Ref CarrierWebsiteBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteBucketName"
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref CarrierWebsiteDistribution
+
+  CarrierTrackingUrl:
+    Description: HTTPS URL for the simulated carrier tracking website
+    Value: !Sub "https://${CarrierWebsiteDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CarrierTrackingUrl"

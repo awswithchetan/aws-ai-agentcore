@@ -63,6 +63,12 @@ agent.py
 Response returned to Streamlit UI
 ```
 
+> **Downstream API authentication:** Cognito protects the customer-facing
+> Streamlit-to-Runtime request. The ShopSmart API is protected separately with
+> `AWS_IAM`; AgentCore Gateway signs its API Gateway requests with SigV4 using
+> the Gateway service role. The customer's Cognito token is not used as the
+> API Gateway credential.
+
 > **Why two tokens?** The Cognito access_token is what the Runtime validates
 > (it carries `client_id`), but it doesn't contain user profile claims. The
 > id_token carries `name`, `email`, and `custom:customer_id`. We send the

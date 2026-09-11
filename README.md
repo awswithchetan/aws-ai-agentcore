@@ -21,7 +21,6 @@ Each module adds a new capability to Aria, so by the end of the course you have 
 - Search the product catalog
 - Remember customers across sessions
 - Check live carrier tracking pages
-- Escalate complex issues to specialist agents
 
 ---
 
@@ -39,9 +38,9 @@ Each module adds a new capability to Aria, so by the end of the course you have 
 │  │ Runtime  │ │Gateway │ │  Memory  │ │  Identity   │  │
 │  └──────────┘ └────────┘ └──────────┘ └─────────────┘  │
 │  ┌──────────┐ ┌────────┐ ┌──────────┐ ┌─────────────┐  │
-│  │  Policy  │ │Browser │ │  Code    │ │ Multi-Agent │  │
-│  └──────────┘ └────────┘ │Interpret.│ │   (A2A)     │  │
-│                          └──────────┘ └─────────────┘  │
+│  │  Policy  │ │ Browser│ │  Gateway │ │             │  │
+│  │          │ │        │ │           │ │             │  │
+│  └──────────┘ └────────┘ └──────────┘ └─────────────┘  │
 └────────────────────────┬────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────┐
@@ -79,16 +78,8 @@ Each module adds a new capability to Aria, so by the end of the course you have 
 | 06 | Stateful Agents | Memory |
 | 07 | Authentication | Identity |
 | 08 | Guardrails & Governance | Policy |
-| 09 | Production Visibility | Observability |
-| 10 | Agents That Compute | Code Interpreter |
-| 11 | Agents That Navigate | Browser |
-| 12 | Multi-Agent Systems | A2A Protocol |
-| 13 | Catalog & Deployment | Registry & CLI |
-| 14 | Production Best Practices | — |
-
----
-
-## Repository Structure
+| 09 | Browser Automation | Browser |
+| 10 | Cleanup | — |
 
 ```
 aws-ai-agentcore/
@@ -115,7 +106,8 @@ aws-ai-agentcore/
     ├── module-02-harness/
     ├── module-03-knowledge-base/
     ├── module-04-runtime/
-    └── ...
+    ├── ...
+    └── module-10-cleanup/
 ```
 
 ---
@@ -139,7 +131,7 @@ Start with [Module 00 — Prerequisites & Setup](modules/module-00-prerequisites
 
 ## AWS Services Used
 
-- **Amazon Bedrock AgentCore** — Runtime, Harness, Gateway, Memory, Identity, Policy, Observability, Code Interpreter, Browser, Registry
+- **Amazon Bedrock AgentCore** — Runtime, Harness, Gateway, Memory, Identity, Policy, and Browser
 - **Amazon Cognito** — Customer authentication
 - **AWS Lambda** — Tool backends
 - **Amazon DynamoDB** — Orders and products data
@@ -147,3 +139,12 @@ Start with [Module 00 — Prerequisites & Setup](modules/module-00-prerequisites
 - **Amazon S3** — Product images, return labels
 - **Amazon CloudWatch** — Logs and traces
 - **Amazon ECR** — Agent container registry
+
+
+---
+
+## Cleanup
+
+When you finish the course, follow [Module 10 — Cleanup](modules/module-10-cleanup/README.md)
+to remove the CloudFormation stacks and the remaining AgentCore, Cognito, S3,
+ECR, SSM, IAM, and CloudWatch resources created during the exercises.

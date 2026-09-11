@@ -29,6 +29,10 @@ ShopSmart REST API (API Gateway)
     └── POST /requests         → submit_request Lambda → DynamoDB
 ```
 
+The API Gateway methods require `AWS_IAM`. AgentCore Gateway signs outbound
+requests with SigV4 using its Gateway service role, while the Runtime role
+authenticates the Runtime-to-Gateway connection.
+
 <details>
 <summary>Why HTTP target instead of Lambda target?</summary>
 
@@ -55,7 +59,7 @@ serve as a tool, with no HTTP layer in front of it.
 | Product search | Not possible | Real DynamoDB products |
 | Return requests | Not possible | Submitted via REST API |
 | Tool routing | N/A | AgentCore Gateway (MCP) |
-| Policy/Observability ready | No | Yes — Gateway is the hook |
+| Policy ready | No | Yes — Gateway is the hook |
 
 </details>
 
@@ -128,20 +132,73 @@ Test customers:
   C003 — Carol White   (1 order: delivered, with return request)
 ```
 
-### Verify the API works
+### Verify API authentication
 
-Before connecting Aria, confirm the API is live:
+The API methods require AWS Signature Version 4 (`AWS_IAM`). An unsigned
+request must fail, while a request signed by an IAM principal with
+`execute-api:Invoke` permission must succeed.
+
+First set the API URL and region:
 
 ```bash
+export AWS_REGION=us-east-1
 export API_URL=$(aws cloudformation describe-stacks \
   --stack-name shopsmart-backend \
   --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" \
   --output text --region $AWS_REGION)
-
-curl "$API_URL/orders?customerId=C001"
-curl "$API_URL/orders/ORD-1001"
-curl "$API_URL/products?q=backpack"
 ```
+
+#### Negative test: unsigned request
+
+```bash
+curl -i "$API_URL/orders?customerId=C001"
+```
+
+Expected result: `403 Forbidden`. This confirms that anonymous callers cannot
+invoke the backend.
+
+#### Signed test: Python validator
+
+The repository includes a small validator that uses the AWS SDK credential
+chain and botocore to sign requests. It does not require a third-party CLI:
+
+```bash
+python modules/module-05-gateway/validate_api.py \
+  --base-url "$API_URL" \
+  --region "$AWS_REGION"
+```
+
+The IAM identity running this command needs `execute-api:Invoke` permission on
+the API. The script checks list orders, get order, and product search. Use a
+named profile when needed:
+
+```bash
+AWS_PROFILE=shopsmart-admin python modules/module-05-gateway/validate_api.py \
+  --base-url "$API_URL" \
+  --region "$AWS_REGION"
+```
+
+`awscurl` is an optional community alternative for interactive checks:
+
+```bash
+awscurl --service execute-api --region "$AWS_REGION" \
+  "$API_URL/orders?customerId=C001"
+```
+
+#### End-to-end test through AgentCore Gateway
+
+After configuring the Gateway target with IAM outbound authorization, test the
+actual tool path in the Streamlit UI. The Gateway service role, rather than
+your local developer identity, must have `execute-api:Invoke` permission.
+
+Try these prompts:
+
+- `My customer ID is C001. What are my orders?`
+- `Tell me about order ORD-1001`
+- `Search for backpacks`
+- `I want to return order ORD-1001`
+- `What is your return policy?` — still works via Knowledge Base
+
 
 ---
 
@@ -174,8 +231,36 @@ curl "$API_URL/products?q=backpack"
      `modules/module-05-gateway/shopsmart-api.yaml`
      — but first replace `<API_BASE_URL>` in the `servers.url` field with
      your actual ApiBaseUrl
-   - **Outbound Auth**: None (API Gateway has no auth — requests from the
-     Gateway go straight through)
+   - **Outbound Auth**: IAM / SigV4
+     - Use the Gateway service role for credentials
+     - Configure the AWS service as `execute-api`
+     - Use the same AWS Region as the API Gateway REST API
+
+   The Gateway service role must be allowed to invoke this API. Add an IAM
+   policy like the following to that role, replacing the placeholders with the
+   values from the CloudFormation outputs:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "execute-api:Invoke",
+         "Resource": "arn:aws:execute-api:<REGION>:<ACCOUNT_ID>:<API_ID>/<ENVIRONMENT>/*/*"
+       }
+     ]
+   }
+   ```
+
+   You can retrieve the API ID with:
+
+   ```bash
+   aws cloudformation describe-stacks \
+     --stack-name shopsmart-backend \
+     --query "Stacks[0].Outputs[?OutputKey=='ApiId'].OutputValue" \
+     --output text --region "$AWS_REGION"
+   ```
 
 7. Click **Create gateway**
 
@@ -359,7 +444,8 @@ Wait for the runtime status to return to **Ready**.
 
 ## Step 8 — Test
 
-Try these prompts in the Streamlit UI:
+The API authentication checks above validate the backend directly. Now test
+the complete tool path through AgentCore Gateway in the Streamlit UI:
 
 - `What are my orders?` — Aria asks for customer ID, then lists from DynamoDB
 - `My customer ID is C001. What are my orders?`
@@ -367,6 +453,10 @@ Try these prompts in the Streamlit UI:
 - `Search for backpacks`
 - `I want to return order ORD-1001`
 - `What is your return policy?` — still works via Knowledge Base
+
+The successful direct validator uses your local IAM principal. The successful
+Streamlit test uses the AgentCore Gateway service role for the API call. These
+are separate authorization checks and both should pass.
 
 ---
 
@@ -400,6 +490,9 @@ Try these prompts in the Streamlit UI:
 - How to register a REST API as an HTTP Gateway target using an OpenAPI spec
 - How the Gateway parses the spec and exposes each operation as an MCP tool
 - How agents discover and call Gateway tools via MCP without hardcoded definitions
+- How to protect API Gateway methods with AWS_IAM and SigV4
+- How to configure AgentCore Gateway outbound IAM authorization
+- How to validate anonymous denial, signed API access, and the end-to-end tool path
 - Why the Gateway architecture enables Policy (Module 08) and Observability
   (Module 09) with no agent code changes
 

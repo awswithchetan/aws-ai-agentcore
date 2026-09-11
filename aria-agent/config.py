@@ -14,10 +14,11 @@ SSM Parameters (all under /aria/):
   /aria/cognito_user_pool_id  — NEW: Cognito User Pool ID (for Streamlit UI)
   /aria/cognito_client_id     — NEW: Cognito App Client ID (for Streamlit UI)
   /aria/cognito_domain        — NEW: Cognito hosted UI domain (for Streamlit UI)
+  /aria/carrier_tracking_url  — NEW: CloudFront URL for the simulated carrier website
 
 Note: The agent itself does not need Cognito parameters at runtime — the JWT is
-validated by the AgentCore Runtime before the agent code runs. These parameters
-are used by the Streamlit UI to drive the login flow.
+validated by the AgentCore Runtime before the agent code runs. The carrier URL
+is used by the local Browser-backed tracking tool.
 """
 
 import logging
@@ -41,6 +42,7 @@ _DEFAULTS = {
     "cognito_user_pool_id": "",
     "cognito_client_id": "",
     "cognito_domain": "",
+    "carrier_tracking_url": "",
 }
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -106,6 +108,7 @@ class AgentConfig:
         self.cognito_user_pool_id: str = _resolve("cognito_user_pool_id", ssm)
         self.cognito_client_id: str = _resolve("cognito_client_id", ssm)
         self.cognito_domain: str = _resolve("cognito_domain", ssm).rstrip("/")
+        self.carrier_tracking_url: str = _resolve("carrier_tracking_url", ssm).rstrip("/")
 
         self._validate()
 
@@ -125,6 +128,7 @@ class AgentConfig:
             ("cognito_user_pool_id", self.cognito_user_pool_id),
             ("cognito_client_id", self.cognito_client_id),
             ("cognito_domain", self.cognito_domain),
+            ("carrier_tracking_url", self.carrier_tracking_url),
         ]:
             if not value:
                 logger.warning("Configuration warning: '%s' is not set.", name)

@@ -1,6 +1,6 @@
 """
 Aria — ShopSmart AI Customer Support Agent
-Module 07: Identity — Auth Done Right
+Module 09: Browser — Live carrier tracking
 
 Replaces the manual customer_id payload with verified JWT identity.
 AgentCore Runtime validates the Cognito JWT before forwarding the Authorization
@@ -23,6 +23,7 @@ Configuration (SSM parameters — prefix /aria/):
   /aria/gateway_endpoint    — AgentCore Gateway MCP endpoint URL
   /aria/memory_id           — AgentCore Memory resource ID
   /aria/memory_strategy_id  — AgentCore Memory strategy ID
+  /aria/carrier_tracking_url — CloudFront URL for the simulated carrier site
 """
 
 import logging
@@ -36,6 +37,7 @@ from strands.tools.mcp import MCPClient
 from config import cfg
 from identity.jwt import extract_identity
 from memory.session import get_memory_session_manager
+from tools.browser import check_carrier_tracking
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -105,6 +107,8 @@ Your role is to help customers with their shopping experience. Be warm, helpful,
 - For policy questions (returns, shipping, payments): use retrieve_from_knowledge_base
 - For order questions: use list_orders or get_order
 - For product questions: use search_products or get_product
+- For the latest carrier status or delivery estimate: first get the order's trackingNumber, then use check_carrier_tracking
+- When reporting carrier tracking results, always include the exact `Tracking ID` returned by check_carrier_tracking as a separate line; never omit or paraphrase it
 - For return/exchange/complaint requests: use submit_request
 - Never make up information — always use the tools to get accurate data
 - Keep responses concise and friendly
@@ -195,7 +199,7 @@ def agent_invocation(payload: dict, context) -> dict:
         agent = Agent(
             model=cfg.model_id,
             system_prompt=system_prompt,
-            tools=[retrieve_from_knowledge_base] + gateway_tools,
+            tools=[retrieve_from_knowledge_base, check_carrier_tracking] + gateway_tools,
             session_manager=get_memory_session_manager(
                 session_id=session_id,
                 actor_id=identity.customer_id,

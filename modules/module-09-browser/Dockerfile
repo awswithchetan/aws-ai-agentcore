@@ -1,5 +1,5 @@
 # Aria — ShopSmart AI Customer Support Agent
-# Module 05: Gateway — adds tools/ directory, no memory yet
+# Module 09: Browser — adds AgentCore Browser carrier tracking
 # Multi-stage build for a lean production image.
 
 # ── Stage 1: dependency builder ───────────────────────────────────────────────
@@ -19,11 +19,12 @@ WORKDIR /app
 
 COPY --from=builder /install /usr/local
 
-# Copy agent source — Module 05 adds tools/ and policies/ directories
+# Copy agent source — Module 09 adds AgentCore Browser carrier tracking
 COPY --chown=aria:aria agent.py .
 COPY --chown=aria:aria config.py .
 COPY --chown=aria:aria tools/    tools/
-COPY --chown=aria:aria policies/ policies/
+COPY --chown=aria:aria memory/   memory/
+COPY --chown=aria:aria identity/ identity/
 
 USER aria
 

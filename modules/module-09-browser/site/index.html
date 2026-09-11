@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopSmart Carrier Tracking</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="card">
+    <div class="brand">ShopSmart Logistics</div>
+    <h1>Carrier tracking</h1>
+    <p class="intro">Enter a tracking number to view the latest delivery update.</p>
+    <form id="tracking-form" method="get">
+      <label for="tracking-number">Tracking number</label>
+      <div class="search-row">
+        <input id="tracking-number" name="trackingNumber" autocomplete="off"
+               placeholder="Example: UPS1234567890" required>
+        <button type="submit">Track package</button>
+      </div>
+    </form>
+    <section id="tracking-result" class="result" aria-live="polite" data-loaded="false">
+      <p class="hint">Tracking details will appear here.</p>
+    </section>
+    <p class="notice">This is a fictional carrier portal used by the ShopSmart course.</p>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
