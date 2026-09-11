@@ -5,11 +5,10 @@
 This module prepares your local workstation and AWS account before you build
 Aria, ShopSmart’s customer-support agent. It follows a simple setup flow:
 
-1. Prepare a Linux, macOS, or Windows/WSL2 workstation.
+1. Prepare a Linux, macOS, or Ubuntu (Windows/WSL2) workstation.
 2. Install the local tools with the supplied script.
 3. Configure and verify AWS CLI access.
 4. Confirm Bedrock model access and Python dependencies.
-5. Move to [Module 02 — Harness](../module-02-harness/README.md).
 
 The installer in this directory installs local software only. It does **not**
 create AWS resources, IAM users, AgentCore resources, or course infrastructure.
@@ -18,13 +17,10 @@ create AWS resources, IAM users, AgentCore resources, or course infrastructure.
 
 ### 1. AWS account
 
-You need an AWS account with permission to use Amazon Bedrock AgentCore and to
-create the course resources. The course creates CloudFormation stacks, Lambda
-functions, DynamoDB tables, API Gateway resources, Cognito resources, S3
-buckets, ECR resources, IAM roles, AgentCore resources, and CloudWatch logs.
+You need an AWS account with permission to use Amazon Bedrock AgentCore and to create the course resources. The course creates CloudFormation stacks, Lambda
+functions, DynamoDB tables, API Gateway resources, Cognito resources, S3 buckets, ECR resources, IAM roles, AgentCore resources, and CloudWatch logs.
 
-For learning purposes, an administrator identity is the simplest option. For a
-shared or production account, use a dedicated identity with least-privilege
+For learning purposes, an administrator identity is the simplest option. For a shared or production account, use a dedicated identity with least-privilege
 permissions instead. Never commit access keys or place them in the repository.
 
 ### 2. Local workstation
@@ -39,11 +35,14 @@ Supported setup options:
 Windows users can install WSL2 from an elevated PowerShell prompt:
 
 ```powershell
-wsl --install -d Ubuntu
+wsl --install -d Ubuntu --name "<name-of-your-vm>"
 ```
 
-Restart Windows if prompted, open Ubuntu, and complete the Linux user setup.
-Then clone the repository inside the WSL2 filesystem.
+To connect to your VM (anytime later):
+
+```bash
+wsl -d <name-of-your-vm>
+```
 
 ### 3. Required tools
 
@@ -53,13 +52,9 @@ The installer checks or installs:
 - Python 3.11 or newer and `venv`
 - AWS CLI v2
 - Docker Engine or Docker Desktop
-- Docker Compose support where available
 - `curl`, `unzip`, and `jq`
 - AgentCore CLI
 - Course Python dependencies, including Boto3, Streamlit, and AgentCore SDKs
-
-VS Code is optional but recommended. Install the Python, AWS Toolkit, YAML, and
-Docker extensions if you use it.
 
 ## Step 1 — Clone the repository
 
@@ -84,24 +79,20 @@ Run the installer from the repository root:
 bash modules/module-00-prerequisites/install-prerequisites.sh
 ```
 
-The script detects macOS or Linux and is safe to rerun. It installs local
-packages, creates `.venv`, installs the root `requirements.txt`, installs the
+The script detects macOS or Linux and is safe to rerun. It installs local packages, creates `.venv`, installs the root `requirements.txt`, installs the
 agent/Browser dependencies, and installs the AgentCore CLI.
 
 ### Docker notes
 
-On macOS, the script installs Docker Desktop if Docker is missing. Open Docker
-Desktop and wait until the daemon is running before building containers.
+On macOS, the script installs Docker Desktop if Docker is missing. Open Docker Desktop and wait until the daemon is running before building containers.
 
-On Linux, the script installs and starts Docker Engine. If your user is added
-to the `docker` group, log out and back in or run:
+On Linux, the script installs and starts Docker Engine. If your user is added to the `docker` group, log out and back in or run:
 
 ```bash
 newgrp docker
 ```
 
-On an x86_64 host, AgentCore Runtime container builds target ARM64. Register
-QEMU/binfmt before the first ARM64 build:
+On an x86_64 host, AgentCore Runtime container builds target ARM64. Register QEMU/binfmt before the first ARM64 build:
 
 ```bash
 docker run --privileged --rm tonistiigi/binfmt --install arm64
@@ -133,7 +124,7 @@ streamlit --version
 agentcore --version
 ```
 
-If the environment was not created by the installer, create it manually:
+If the environment is not setup by the installer, you can set it up manually:
 
 ```bash
 python3 -m venv .venv
@@ -167,13 +158,6 @@ Default region name:   us-east-1
 Default output format: json
 ```
 
-For named profiles, use:
-
-```bash
-aws configure --profile agentcore-dev
-export AWS_PROFILE=agentcore-dev
-```
-
 Verify the identity and select the course Region:
 
 ```bash
@@ -182,26 +166,13 @@ export AWS_REGION=us-east-1
 export AWS_DEFAULT_REGION="$AWS_REGION"
 ```
 
-Expected identity output resembles:
-
-```json
-{
-  "UserId": "AIDA...",
-  "Account": "123456789012",
-  "Arn": "arn:aws:iam::123456789012:user/agentcore-dev"
-}
-```
-
-> The course examples use `us-east-1`. AgentCore Browser, Runtime, Bedrock
-> models, and other services must be available in the Region you select. Keep
-> one Region consistently throughout the course.
+> The course examples use `us-east-1`. AgentCore Browser, Runtime, Bedrock models, and other services must be available in the Region you select. Keep one Region consistently throughout the course.
 
 ## Step 5 — Confirm Bedrock model access
 
-The course uses Anthropic Claude through Amazon Bedrock. Model availability and
-first-time-use requirements vary by account and Region.
+The course uses Anthropic Claude through Amazon Bedrock. Model availability and first-time-use requirements vary by account and Region.
 
-1. Open the **Amazon Bedrock** console in `$AWS_REGION`.
+1. Open the **Amazon Bedrock** console for your AWS region.
 2. Open **Model catalog** and locate the Claude model used by the course.
 3. Complete any first-time-use or model-access request shown by the console.
 4. Confirm your identity can list foundation models:
@@ -213,8 +184,7 @@ aws bedrock list-foundation-models \
   --output table
 ```
 
-A successful command confirms API access. It does not guarantee that every
-specific model invocation is permitted; test the selected model when you reach
+A successful command confirms API access. It does not guarantee that every specific model invocation is permitted; test the selected model when you reach
 Module 02.
 
 ## Step 6 — Verify the complete setup
