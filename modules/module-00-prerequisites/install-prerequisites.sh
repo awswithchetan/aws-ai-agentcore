@@ -40,7 +40,7 @@ install_debian_ubuntu() {
   sudo apt-get install -y \
     ca-certificates curl git jq unzip \
     python3 python3-venv python3-pip \
-    docker.io docker-compose-plugin
+    docker.io
 
   sudo systemctl enable docker
   sudo systemctl start docker
