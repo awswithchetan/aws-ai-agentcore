@@ -230,13 +230,13 @@ Verify the copied files:
 ls aria-agent/tools/browser.py \
    aria-agent/agent.py \
    aria-agent/config.py \
-> The existing `identity/` and `memory/` directories from Modules 06–07 must
-> remain in `aria-agent/`; the Dockerfile copies them into the image along with
-> the new Browser tool.
-
    aria-agent/Dockerfile \
    aria-agent/requirements.txt
 ```
+
+> The existing `identity/` and `memory/` directories from Modules 06–07 must
+> remain in `aria-agent/`; the Dockerfile copies them into the image along with
+> the new Browser tool.
 
 > The `aria-agent/` directory is the deployment source. Copy the
 > files before building the image; changing the source files afterward does not
@@ -377,7 +377,5 @@ orders, products, or the API.
 
 ## Next step
 
-This completes the ShopSmart AgentCore course. Observability remains an
-important production topic, but is intentionally left for a separate advanced
-module because it requires deeper treatment of traces, logs, metrics, and
-operational workflows.
+Proceed to [Module 10 — Cleanup](../module-10-cleanup/README.md) to remove the
+course resources when you are finished.

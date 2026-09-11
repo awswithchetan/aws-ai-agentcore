@@ -79,6 +79,7 @@ Each module adds a new capability to Aria, so by the end of the course you have 
 | 07 | Authentication | Identity |
 | 08 | Guardrails & Governance | Policy |
 | 09 | Browser Automation | Browser |
+| 10 | Cleanup | — |
 
 ```
 aws-ai-agentcore/
@@ -105,7 +106,8 @@ aws-ai-agentcore/
     ├── module-02-harness/
     ├── module-03-knowledge-base/
     ├── module-04-runtime/
-    └── ...
+    ├── ...
+    └── module-10-cleanup/
 ```
 
 ---
@@ -137,3 +139,12 @@ Start with [Module 00 — Prerequisites & Setup](modules/module-00-prerequisites
 - **Amazon S3** — Product images, return labels
 - **Amazon CloudWatch** — Logs and traces
 - **Amazon ECR** — Agent container registry
+
+
+---
+
+## Cleanup
+
+When you finish the course, follow [Module 10 — Cleanup](modules/module-10-cleanup/README.md)
+to remove the CloudFormation stacks and the remaining AgentCore, Cognito, S3,
+ECR, SSM, IAM, and CloudWatch resources created during the exercises.
