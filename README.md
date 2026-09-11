@@ -118,7 +118,6 @@ aws-ai-agentcore/
 - Python 3.11+
 - AWS CLI v2
 - Docker Desktop
-- AgentCore CLI (`pip install amazon-bedrock-agentcore-cli`)
 - VS Code (recommended)
 
 ---

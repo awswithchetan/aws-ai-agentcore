@@ -107,8 +107,6 @@ install_python_environment() {
     python -m pip install -r "$REPO_ROOT/aria-agent/requirements.txt"
   fi
 
-  log "Installing AgentCore CLI"
-  python -m pip install amazon-bedrock-agentcore-cli
 }
 
 verify_installation() {
@@ -124,10 +122,9 @@ verify_installation() {
     fi
   done
 
-  # The venv contains the Python packages and AgentCore CLI.
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
-  for command_name in python pip streamlit agentcore; do
+  for command_name in python pip streamlit; do
     if command_exists "$command_name"; then
       printf 'OK  %-10s %s\n' "$command_name" "$(command -v "$command_name")"
     else

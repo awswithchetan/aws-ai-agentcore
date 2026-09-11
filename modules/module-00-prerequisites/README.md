@@ -53,7 +53,6 @@ The installer checks or installs:
 - AWS CLI v2
 - Docker Engine or Docker Desktop
 - `curl`, `unzip`, and `jq`
-- AgentCore CLI
 - Course Python dependencies, including Boto3, Streamlit, and AgentCore SDKs
 
 ## Step 1 — Clone the repository
@@ -79,8 +78,7 @@ Run the installer from the repository root:
 bash modules/module-00-prerequisites/install-prerequisites.sh
 ```
 
-The script detects macOS or Linux and is safe to rerun. It installs local packages, creates `.venv`, installs the root `requirements.txt`, installs the
-agent/Browser dependencies, and installs the AgentCore CLI.
+The script detects macOS or Linux and is safe to rerun. It installs local packages, creates `.venv`, and installs the root `requirements.txt` and agent/Browser dependencies.
 
 ### Docker notes
 
@@ -121,7 +119,6 @@ You should see `(.venv)` in your shell prompt. Verify the key Python tools:
 python --version
 pip --version
 streamlit --version
-agentcore --version
 ```
 
 If the environment is not setup by the installer, you can set it up manually:
@@ -132,7 +129,6 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install -r aria-agent/requirements.txt
-python -m pip install amazon-bedrock-agentcore-cli
 ```
 
 ## Step 4 — Configure AWS CLI access
@@ -200,7 +196,6 @@ git --version
 docker --version
 docker info
 streamlit --version
-agentcore --version
 
 python -c "import boto3, bedrock_agentcore, strands; print('Python dependencies OK')"
 ```
@@ -217,7 +212,6 @@ Module 04 and later container deployment instructions require it.
 | Region selected consistently | Yes | ☐ |
 | Bedrock Claude access | Yes | ☐ |
 | Python 3.11+ and virtual environment | Yes | ☐ |
-| AgentCore CLI | Yes | ☐ |
 | Docker running | Module 04+ container path | ☐ |
 | Git | Yes | ☐ |
 | VS Code | Recommended | ☐ |
@@ -242,15 +236,6 @@ Register binfmt/QEMU and bootstrap Buildx:
 ```bash
 docker run --privileged --rm tonistiigi/binfmt --install arm64
 docker buildx inspect --bootstrap
-```
-
-### `agentcore` is not found
-
-Activate `.venv` and reinstall the CLI:
-
-```bash
-source .venv/bin/activate
-python -m pip install amazon-bedrock-agentcore-cli
 ```
 
 ### Python dependency installation fails
