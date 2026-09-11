@@ -1,5 +1,5 @@
 # Aria — ShopSmart AI Customer Support Agent
-# Module 07: Identity — adds identity/ directory for JWT claim extraction
+# Module 09: Browser — adds AgentCore Browser carrier tracking
 # Multi-stage build for a lean production image.
 
 # ── Stage 1: dependency builder ───────────────────────────────────────────────
@@ -19,7 +19,7 @@ WORKDIR /app
 
 COPY --from=builder /install /usr/local
 
-# Copy agent source — Module 07 adds identity/ for JWT claim extraction
+# Copy agent source — Module 09 adds AgentCore Browser carrier tracking
 COPY --chown=aria:aria agent.py .
 COPY --chown=aria:aria config.py .
 COPY --chown=aria:aria tools/    tools/

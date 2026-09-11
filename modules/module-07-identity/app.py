@@ -109,6 +109,8 @@ if "id_token" not in st.session_state:
     st.session_state.id_token = None        # used for reading user claims (name, email, custom:customer_id)
 if "access_token" not in st.session_state:
     st.session_state.access_token = None    # used for invoking the runtime (has client_id claim)
+if "refresh_token" not in st.session_state:
+    st.session_state.refresh_token = None  # used to obtain fresh access/id tokens
 if "user_claims" not in st.session_state:
     st.session_state.user_claims = {}
 
@@ -137,6 +139,7 @@ if "code" in query_params and not st.session_state.id_token:
         #               that AgentCore's JWT authorizer validates against allowedClients
         st.session_state.id_token = tokens.get("id_token")
         st.session_state.access_token = tokens.get("access_token")
+        st.session_state.refresh_token = tokens.get("refresh_token")
         if st.session_state.id_token:
             st.session_state.user_claims = decode_jwt_payload(st.session_state.id_token)
         # Clear the code from the URL to avoid re-exchanging on refresh
@@ -171,6 +174,39 @@ if not st.session_state.messages:
 
 # ── Invoke function ───────────────────────────────────────────────────────────
 
+def refresh_cognito_tokens() -> bool:
+    """Refresh expired Cognito tokens using the public app client's refresh token."""
+    refresh_token = st.session_state.refresh_token
+    if not refresh_token:
+        return False
+
+    try:
+        token_endpoint = f"{cognito['domain']}/oauth2/token"
+        resp = http_requests.post(
+            token_endpoint,
+            data={
+                "grant_type": "refresh_token",
+                "client_id": cognito["client_id"],
+                "refresh_token": refresh_token,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        tokens = resp.json()
+        access_token = tokens.get("access_token")
+        if not access_token:
+            return False
+
+        st.session_state.access_token = access_token
+        if tokens.get("id_token"):
+            st.session_state.id_token = tokens["id_token"]
+            st.session_state.user_claims = decode_jwt_payload(tokens["id_token"])
+        return True
+    except Exception:
+        return False
+
+
 def invoke_aria(prompt: str) -> str:
     """Invoke Aria via AgentCore Runtime HTTPS endpoint, passing the JWT as a Bearer token.
 
@@ -193,31 +229,32 @@ def invoke_aria(prompt: str) -> str:
     escaped_arn = urllib.parse.quote(RUNTIME_ARN, safe="")
     url = f"{AGENTCORE_BASE_URL}/runtimes/{escaped_arn}/invocations?qualifier=DEFAULT"
 
-    headers = {
-        "Authorization": f"Bearer {st.session_state.access_token}",
-        # Pass the id_token as a custom header so agent.py can extract
-        # identity claims (name, email, custom:customer_id) from it.
-        # The Authorization header carries the access_token which contains
-        # the client_id claim that AgentCore's JWT authorizer validates.
-        "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token": st.session_state.id_token or "",
-        "Content-Type": "application/json",
-        "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": st.session_state.session_id,
-    }
-
     try:
-        resp = http_requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=60,
-        )
-        if resp.status_code == 401:
-            # Show the raw error before logging out so we can debug
-            return f"[401 Unauthorized] Response body: {resp.text[:500]}"
-        if not resp.ok:
-            return f"[HTTP {resp.status_code}] Response body: {resp.text[:500]}"
-        result = resp.json()
-        return result.get("result", "Sorry, I could not process your request.")
+        for attempt in range(2):
+            headers = {
+                "Authorization": f"Bearer {st.session_state.access_token}",
+                "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token": st.session_state.id_token or "",
+                "Content-Type": "application/json",
+                "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": st.session_state.session_id,
+            }
+            resp = http_requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=60,
+            )
+
+            if resp.status_code == 401 and attempt == 0:
+                if refresh_cognito_tokens():
+                    continue
+                return "Your sign-in session has expired. Please sign in again."
+
+            if resp.status_code == 401:
+                return "Your sign-in session has expired. Please sign in again."
+            if not resp.ok:
+                return f"[HTTP {resp.status_code}] Response body: {resp.text[:500]}"
+            result = resp.json()
+            return result.get("result", "Sorry, I could not process your request.")
     except Exception as e:
         return f"Unable to reach Aria right now. Please try again. ({str(e)})"
 
@@ -261,6 +298,7 @@ with st.sidebar:
             st.session_state.id_token = None
             st.session_state.access_token = None
             st.session_state.user_claims = {}
+            st.session_state.refresh_token = None
             st.session_state.messages = []
             st.session_state.session_id = str(uuid.uuid4())
             st.markdown(f'<meta http-equiv="refresh" content="0; url={logout_url}">', unsafe_allow_html=True)

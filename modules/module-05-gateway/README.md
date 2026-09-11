@@ -59,7 +59,7 @@ serve as a tool, with no HTTP layer in front of it.
 | Product search | Not possible | Real DynamoDB products |
 | Return requests | Not possible | Submitted via REST API |
 | Tool routing | N/A | AgentCore Gateway (MCP) |
-| Policy/Observability ready | No | Yes — Gateway is the hook |
+| Policy ready | No | Yes — Gateway is the hook |
 
 </details>
 

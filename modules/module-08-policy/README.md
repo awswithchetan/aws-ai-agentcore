@@ -464,8 +464,8 @@ Action naming: `<GatewayTargetName>___<toolName>` (three underscores)
 
 ---
 
-## Next Step
+## Next step
 
-Proceed to [Module 09 — Observability](../module-09-observability/README.md)
-where you will add CloudWatch dashboards, traces, and metrics to get full
-visibility into Aria's behaviour in production.
+Proceed to [Module 09 — Browser](../module-09-browser/README.md)
+where you will use AgentCore Browser and a managed Chrome session to check live
+carrier tracking information.
