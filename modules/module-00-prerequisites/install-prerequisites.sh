@@ -289,7 +289,7 @@ main() {
   log "Installation complete"
   printf '%b\n' "${GREEN}Next steps:${RESET}"
   printf '%b\n' "${GREEN}1. Activate the environment in every new terminal:${RESET}"
-  printf '   source "%s"\n\n' "$VENV_DIR"
+  printf '   source "%s/bin/activate"\n\n' "$VENV_DIR"
   printf '%b\n' "${GREEN}2. Configure AWS credentials:${RESET}"
   printf '   aws configure\n'
   printf '   aws sts get-caller-identity\n\n'
