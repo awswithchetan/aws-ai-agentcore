@@ -13,6 +13,14 @@ INSTALL_STATE_FILE="${INSTALL_STATE_FILE:-$REPO_ROOT/.prerequisites-install-stat
 log()  { printf '\n==> %s\n' "$*"; }
 warn() { printf '\nWARNING: %s\n' "$*" >&2; }
 
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  GREEN=$'\033[0;32m'
+  RESET=$'\033[0m'
+else
+  GREEN=''
+  RESET=''
+fi
+
 command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -279,21 +287,14 @@ main() {
   verify_installation
 
   log "Installation complete"
-  cat <<EOF
-Activate the environment in every new terminal:
-
-  source "$VENV_DIR/bin/activate"
-
-Configure AWS credentials next:
-
-  aws configure
-  aws sts get-caller-identity
-
-For ARM64 AgentCore Runtime builds from an x86_64 machine, register emulation
-before building a container:
-
-  docker run --privileged --rm tonistiigi/binfmt --install arm64
-EOF
+  printf '%b\n' "${GREEN}Next steps:${RESET}"
+  printf '%b\n' "${GREEN}1. Activate the environment in every new terminal:${RESET}"
+  printf '   source "%s"\n\n' "$VENV_DIR"
+  printf '%b\n' "${GREEN}2. Configure AWS credentials:${RESET}"
+  printf '   aws configure\n'
+  printf '   aws sts get-caller-identity\n\n'
+  printf '%b\n' "${GREEN}3. For ARM64 AgentCore Runtime builds from an x86_64 machine, register emulation before building a container:${RESET}"
+  printf '   docker run --privileged --rm tonistiigi/binfmt --install arm64\n'
 }
 
 main "$@"
