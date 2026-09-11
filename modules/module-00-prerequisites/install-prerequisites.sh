@@ -3,10 +3,12 @@ set -euo pipefail
 
 # Install local prerequisites for the ShopSmart AgentCore course.
 # This script installs or verifies local tooling only; it does not create AWS resources.
+# Completed steps are recorded so a rerun resumes after the last failed step.
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 VENV_DIR="${VENV_DIR:-$REPO_ROOT/.venv}"
+INSTALL_STATE_FILE="${INSTALL_STATE_FILE:-$REPO_ROOT/.prerequisites-install-state}"
 
 log()  { printf '\n==> %s\n' "$*"; }
 warn() { printf '\nWARNING: %s\n' "$*" >&2; }
@@ -15,45 +17,96 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
-install_macos() {
-  log "Installing prerequisites for macOS"
-
-  if ! command_exists brew; then
-    log "Installing Homebrew"
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    warn "If brew is not available in this shell, follow Homebrew's post-install instructions and rerun this script."
-  fi
-
-  brew install python@3.11 git jq unzip awscli 2>/dev/null || true
-
-  if ! command_exists docker; then
-    log "Installing Docker Desktop"
-    brew install --cask docker
-    warn "Start Docker Desktop, wait until it is running, then rerun this script."
-  fi
+step_done() {
+  [[ -f "$INSTALL_STATE_FILE" ]] && grep -Fqx -- "$1" "$INSTALL_STATE_FILE"
 }
 
-install_debian_ubuntu() {
-  log "Installing prerequisites for Debian/Ubuntu"
+mark_step_done() {
+  mkdir -p "$(dirname -- "$INSTALL_STATE_FILE")"
+  printf '%s\n' "$1" >> "$INSTALL_STATE_FILE"
+}
 
-  sudo apt-get update
+run_step() {
+  local step_name="$1"
+  shift
+
+  if step_done "$step_name"; then
+    log "Skipping completed step: $step_name"
+    return 0
+  fi
+
+  log "Running step: $step_name"
+  if "$@"; then
+    mark_step_done "$step_name"
+    return 0
+  fi
+
+  warn "Step failed: $step_name"
+  warn "Rerun this script to retry from this step. Completed steps will be skipped."
+  return 1
+}
+
+install_homebrew() {
+  if command_exists brew; then
+    return 0
+  fi
+
+  log "Installing Homebrew"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || return 1
+  warn "If brew is not available in this shell, follow Homebrew's post-install instructions and rerun this script."
+}
+
+install_macos_packages() {
+  brew install python@3.11 git jq unzip awscli
+}
+
+install_macos_docker() {
+  if command_exists docker; then
+    return 0
+  fi
+
+  log "Installing Docker Desktop"
+  brew install --cask docker
+  warn "Start Docker Desktop, wait until it is running, then rerun this script."
+}
+
+install_macos() {
+  log "Installing prerequisites for macOS"
+  run_step "macos-homebrew" install_homebrew || return 1
+  run_step "macos-packages" install_macos_packages || return 1
+  run_step "macos-docker" install_macos_docker
+}
+
+install_debian_packages() {
+  sudo apt-get update || return 1
   sudo apt-get install -y \
     ca-certificates curl git jq unzip \
     python3 python3-venv python3-pip \
     docker.io
-
-  sudo systemctl enable docker
-  sudo systemctl start docker
-
-  if ! id -nG "$USER" | grep -qw docker; then
-    sudo usermod -aG docker "$USER"
-    warn "Your user was added to the docker group. Log out and back in, or run 'newgrp docker', before using Docker without sudo."
-  fi
 }
 
-install_rhel_amazon() {
-  log "Installing prerequisites for RHEL/Amazon Linux"
+start_debian_docker() {
+  sudo systemctl enable docker || return 1
+  sudo systemctl start docker
+}
 
+configure_linux_docker_group() {
+  if id -nG "$USER" | grep -qw docker; then
+    return 0
+  fi
+
+  sudo usermod -aG docker "$USER" || return 1
+  warn "Your user was added to the docker group. Log out and back in, or run 'newgrp docker', before using Docker without sudo."
+}
+
+install_debian_ubuntu() {
+  log "Installing prerequisites for Debian/Ubuntu"
+  run_step "debian-packages" install_debian_packages || return 1
+  run_step "debian-docker-service" start_debian_docker || return 1
+  run_step "debian-docker-group" configure_linux_docker_group
+}
+
+install_rhel_packages() {
   local package_manager="yum"
   if command_exists dnf; then
     package_manager="dnf"
@@ -63,19 +116,23 @@ install_rhel_amazon() {
     ca-certificates curl git jq unzip \
     python3 python3-pip \
     docker
+}
 
-  sudo systemctl enable docker
+start_rhel_docker() {
+  sudo systemctl enable docker || return 1
   sudo systemctl start docker
+}
 
-  if ! id -nG "$USER" | grep -qw docker; then
-    sudo usermod -aG docker "$USER"
-    warn "Your user was added to the docker group. Log out and back in, or run 'newgrp docker', before using Docker without sudo."
-  fi
+install_rhel_amazon() {
+  log "Installing prerequisites for RHEL/Amazon Linux"
+  run_step "rhel-packages" install_rhel_packages || return 1
+  run_step "rhel-docker-service" start_rhel_docker || return 1
+  run_step "rhel-docker-group" configure_linux_docker_group
 }
 
 install_aws_cli_linux() {
   if command_exists aws; then
-    return
+    return 0
   fi
 
   log "Installing AWS CLI v2"
@@ -84,29 +141,45 @@ install_aws_cli_linux() {
   trap 'rm -rf "$tmp_dir"' RETURN
 
   curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip \
-    -o "$tmp_dir/awscliv2.zip"
-  unzip -q "$tmp_dir/awscliv2.zip" -d "$tmp_dir"
+    -o "$tmp_dir/awscliv2.zip" || return 1
+  unzip -q "$tmp_dir/awscliv2.zip" -d "$tmp_dir" || return 1
   sudo "$tmp_dir/aws/install" --update
 }
 
-install_python_environment() {
-  log "Creating the Python virtual environment"
+create_python_environment() {
   python3 -m venv "$VENV_DIR"
+}
 
+upgrade_pip() {
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
   python -m pip install --upgrade pip
+}
 
-  if [[ -f "$REPO_ROOT/requirements.txt" ]]; then
-    log "Installing course Python dependencies"
-    python -m pip install -r "$REPO_ROOT/requirements.txt"
-  fi
+install_root_dependencies() {
+  [[ -f "$REPO_ROOT/requirements.txt" ]] || return 0
 
-  if [[ -f "$REPO_ROOT/aria-agent/requirements.txt" ]]; then
-    log "Installing agent and Browser development dependencies"
-    python -m pip install -r "$REPO_ROOT/aria-agent/requirements.txt"
-  fi
+  # shellcheck disable=SC1091
+  source "$VENV_DIR/bin/activate"
+  log "Installing course Python dependencies"
+  python -m pip install -r "$REPO_ROOT/requirements.txt"
+}
 
+install_agent_dependencies() {
+  [[ -f "$REPO_ROOT/aria-agent/requirements.txt" ]] || return 0
+
+  # shellcheck disable=SC1091
+  source "$VENV_DIR/bin/activate"
+  log "Installing agent and Browser development dependencies"
+  python -m pip install -r "$REPO_ROOT/aria-agent/requirements.txt"
+}
+
+install_python_environment() {
+  log "Setting up the Python virtual environment"
+  run_step "python-venv" create_python_environment || return 1
+  run_step "python-pip" upgrade_pip || return 1
+  run_step "python-root-dependencies" install_root_dependencies || return 1
+  run_step "python-agent-dependencies" install_agent_dependencies
 }
 
 verify_installation() {
@@ -121,6 +194,11 @@ verify_installation() {
       failed=1
     fi
   done
+
+  if [[ ! -d "$VENV_DIR" ]]; then
+    warn "Python virtual environment not found at $VENV_DIR"
+    return 1
+  fi
 
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
@@ -145,9 +223,21 @@ verify_installation() {
 }
 
 main() {
+  if [[ "${1:-}" == "--reset" ]]; then
+    rm -f "$INSTALL_STATE_FILE"
+    shift
+    log "Removed installer state; all steps will run again."
+  fi
+
+  if [[ $# -gt 0 ]]; then
+    echo "Usage: $0 [--reset]" >&2
+    exit 2
+  fi
+
   log "ShopSmart AgentCore course prerequisite installer"
   printf 'Repository: %s\n' "$REPO_ROOT"
   printf 'Virtual environment: %s\n' "$VENV_DIR"
+  printf 'State file: %s\n' "$INSTALL_STATE_FILE"
 
   local os_name
   os_name="$(uname -s)"
@@ -166,18 +256,17 @@ main() {
       case "${ID:-}" in
         ubuntu|debian)
           install_debian_ubuntu
-          install_aws_cli_linux
           ;;
         amzn|rhel|centos|fedora)
           install_rhel_amazon
-          install_aws_cli_linux
           ;;
         *)
           echo "Unsupported Linux distribution: ${ID:-unknown}" >&2
-          echo "Install Python 3.11, AWS CLI v2, Docker, Git, curl, unzip, and jq manually, then rerun this script." >&2
+          echo "Install Python 3.11, AWS CLI v2, Docker, Git, curl, unzip, and jq manually, then rerun the script." >&2
           exit 1
           ;;
       esac
+      run_step "aws-cli" install_aws_cli_linux
       ;;
     *)
       echo "Unsupported operating system: $os_name" >&2

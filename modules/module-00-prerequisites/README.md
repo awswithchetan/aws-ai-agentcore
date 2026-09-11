@@ -78,7 +78,15 @@ Run the installer from the repository root:
 bash modules/module-00-prerequisites/install-prerequisites.sh
 ```
 
-The script detects macOS or Linux and is safe to rerun. It installs local packages, creates `.venv`, and installs the root `requirements.txt` and agent/Browser dependencies.
+The script detects macOS or Linux and is safe to rerun. It installs local packages, creates `.venv`, and installs the root `requirements.txt` and agent/Browser dependencies. After each successful step, it records the step in `.prerequisites-install-state`; if a step fails, rerunning the script skips completed steps and retries the failed step.
+
+To intentionally rerun every installation step, use:
+
+```bash
+bash modules/module-00-prerequisites/install-prerequisites.sh --reset
+```
+
+The state file is local, ignored by Git, and contains no credentials.
 
 ### Docker notes
 
