@@ -51,7 +51,7 @@ Open `aria-agent/agent.py` in VS Code and review the structure before deploying.
 
 ### Via AWS Console
 
-1. Go to **AWS Console → IAM → Roles → `AriaHarnessExecutionRole`**
+1. Go to **AWS Console → IAM → Roles → `AriaAgentExecutionRole`**
 2. Click **Add permissions → Attach policies**
 3. Search for `AmazonEC2ContainerRegistryReadOnly`
 4. Select it and click **Add permissions**
@@ -60,7 +60,7 @@ Open `aria-agent/agent.py` in VS Code and review the structure before deploying.
 
 ```bash
 aws iam attach-role-policy \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
 ```
 
@@ -71,7 +71,7 @@ aws iam attach-role-policy \
 `ecr:GetAuthorizationToken`, `ecr:BatchGetImage`, and `ecr:GetDownloadUrlForLayer`.
 These are the minimum required for AgentCore to pull a container image — nothing more.
 
-The `AriaHarnessExecutionRole` from Module 02 didn't need ECR permissions because
+The `AriaAgentExecutionRole` from Module 02 didn't need ECR permissions because
 the Harness had no container to pull. Now that we deploy a container image, this
 is required.
 
@@ -201,7 +201,7 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
    - **Deployment method**: Container image
    - **Image URI**: `<your-ecr-repo-uri>:latest`
 3. **Environment variables**: add `AWS_REGION` only (e.g. `us-east-1`)
-4. **Execution role**: select `AriaHarnessExecutionRole`
+4. **Execution role**: select `AriaAgentExecutionRole`
 5. Click **Create agent runtime**
 6. Wait until status shows **Active**
 7. Note down the **Agent Runtime ARN**
@@ -221,7 +221,7 @@ aws bedrock-agentcore control create-agent-runtime \
   }" \
   --environment-variables "AWS_REGION=$AWS_REGION" \
   --network-configuration '{"networkMode": "PUBLIC"}' \
-  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaHarnessExecutionRole" \
+  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaAgentExecutionRole" \
   --region us-east-1
 ```
 
@@ -238,7 +238,7 @@ aws bedrock-agentcore control create-agent-runtime \
    - **Runtime**: Python 3.11
    - **Entrypoint file**: `agent.py`
 3. Zip the `aria-agent/` folder contents and upload
-4. **Execution role**: select `AriaHarnessExecutionRole`
+4. **Execution role**: select `AriaAgentExecutionRole`
 5. Click **Create agent runtime**
 6. Wait until status shows **Active**
 7. Note down the **Agent Runtime ARN**
@@ -262,7 +262,7 @@ aws bedrock-agentcore control create-agent-runtime \
     }
   }' \
   --network-configuration '{"networkMode": "PUBLIC"}' \
-  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaHarnessExecutionRole" \
+  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaAgentExecutionRole" \
   --region us-east-1
 ```
 

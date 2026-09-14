@@ -32,7 +32,7 @@ The Harness needs an IAM role to invoke Bedrock models and write logs. Create th
    - `AmazonBedrockAgentCoreFullAccess`
    - `CloudWatchLogsFullAccess`
 6. Click **Next**
-7. **Role name**: `AriaHarnessExecutionRole`
+7. **Role name**: `AriaAgentExecutionRole`
 8. Click **Create role**
 9. Note down the **Role ARN**
 
@@ -55,21 +55,21 @@ EOF
 
 # Create role
 aws iam create-role \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --assume-role-policy-document file://trust-policy.json
 
 # Attach policies
 aws iam attach-role-policy \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --policy-arn arn:aws:iam::aws:policy/AmazonBedrockFullAccess
 
 aws iam attach-role-policy \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
 
 # Get Role ARN
 aws iam get-role \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --query "Role.Arn" \
   --output text
 
@@ -99,7 +99,7 @@ rm trust-policy.json
    - **Harness name**: `aria-harness`
    - **Model**: Claude Sonnet 4.6 (default — keep as is)
    - **System prompt**: paste the system prompt from the section below
-   - **Execution role**: select `AriaHarnessExecutionRole`
+   - **Execution role**: select `AriaAgentExecutionRole`
 
 5. Leave all other settings as default
 6. Click **Create harness**
@@ -112,7 +112,7 @@ rm trust-policy.json
 # Replace <YOUR_ACCOUNT_ID> with your AWS account ID
 aws bedrock-agentcore-control create-harness \
   --harness-name "aria-harness" \
-  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaHarnessExecutionRole" \
+  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaAgentExecutionRole" \
   --region us-east-1
 
 # Poll until status is READY
@@ -238,7 +238,7 @@ aws bedrock-agentcore-control delete-harness \
   --region us-east-1
 ```
 
-> The IAM role `AriaHarnessExecutionRole` can be kept — we will reuse it in Module 04 for the Runtime agent.
+> The IAM role `AriaAgentExecutionRole` can be kept — we will reuse it in Module 04 for the Runtime agent.
 
 ---
 

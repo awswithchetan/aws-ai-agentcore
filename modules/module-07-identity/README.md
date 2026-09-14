@@ -318,7 +318,7 @@ RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
 aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id $RUNTIME_ID \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
-  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaHarnessExecutionRole" \
+  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
   --authorizer-configuration "{
     \"customJWTAuthorizer\": {
@@ -524,7 +524,7 @@ RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
 aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id $RUNTIME_ID \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
-  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaHarnessExecutionRole" \
+  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
   --description "Module 07 — Identity" \
   --region $AWS_REGION

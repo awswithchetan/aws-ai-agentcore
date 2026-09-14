@@ -349,7 +349,7 @@ aws ssm delete-parameters \
 Only delete IAM resources after confirming no other workload uses them.
 Review the IAM console first:
 
-- `AriaHarnessExecutionRole` — used by the Harness and Runtime.
+- `AriaAgentExecutionRole` — used by the Harness and Runtime.
 - The Gateway service role created for `shopsmart-gateway`.
 - The Knowledge Base service role created for `shopsmart-kb`.
 - `ShopSmartLambdaRole-dev` — normally removed with the backend stack.
@@ -358,32 +358,32 @@ List the execution role policies before removing them:
 
 ```bash
 aws iam list-role-policies \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --output table
 
 aws iam list-attached-role-policies \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --output table
 ```
 
-If `AriaHarnessExecutionRole` is used only by this course, remove the inline
+If `AriaAgentExecutionRole` is used only by this course, remove the inline
 policies added in Modules 05–09, detach the ECR managed policy, and then delete
 the role. Policy names may differ if you chose different names:
 
 ```bash
 aws iam delete-role-policy \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --policy-name Gateway_Permissions
 
 aws iam delete-role-policy \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --policy-name AriaMemoryAccess
 
 aws iam detach-role-policy \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
 
-aws iam delete-role --role-name AriaHarnessExecutionRole
+aws iam delete-role --role-name AriaAgentExecutionRole
 ```
 
 Do not run the role deletion if the role is shared or if any Runtime, Gateway,

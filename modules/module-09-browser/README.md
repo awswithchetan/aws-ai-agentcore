@@ -285,7 +285,7 @@ ARN if your deployment uses different values:
 aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id <YOUR_RUNTIME_ID> \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
-  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaHarnessExecutionRole" \
+  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
   --description "Module 09 — Browser" \
   --region "$AWS_REGION"

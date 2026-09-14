@@ -278,13 +278,13 @@ Try these prompts:
 
 ## Step 4 — Grant the Agent Permission to Invoke the Gateway
 
-The agent runs inside AgentCore Runtime using `AriaHarnessExecutionRole`. That
+The agent runs inside AgentCore Runtime using `AriaAgentExecutionRole`. That
 role needs `bedrock-agentcore:InvokeGateway` permission on the Gateway,
 otherwise the `MCPClient` connection will fail with an authorization error.
 
 ### Via AWS Console
 
-1. Go to **AWS Console → IAM → Roles → AriaHarnessExecutionRole**
+1. Go to **AWS Console → IAM → Roles → AriaAgentExecutionRole**
 2. Click **Add permissions → Create inline policy**
 3. Switch to **JSON** and paste:
 
@@ -319,7 +319,7 @@ GATEWAY_ARN=$(aws bedrock-agentcore-control get-gateway \
   --query 'gatewayArn' --output text)
 
 aws iam put-role-policy \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --policy-name Gateway_Permissions \
   --policy-document "{
     \"Version\": \"2012-10-17\",
@@ -432,7 +432,7 @@ RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
 aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id $RUNTIME_ID \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
-  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaHarnessExecutionRole" \
+  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
   --description "Module 05 — Gateway tools" \
   --region $AWS_REGION

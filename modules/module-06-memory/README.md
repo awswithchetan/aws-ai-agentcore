@@ -142,7 +142,7 @@ export MEMORY_ID=mem-XXXXXXXXXX
 
 ### Via AWS Console
 
-1. Go to **IAM → Roles → AriaHarnessExecutionRole**
+1. Go to **IAM → Roles → AriaAgentExecutionRole**
 2. Click **Add permissions → Create inline policy**
 3. Switch to the **JSON** editor and paste:
 
@@ -177,7 +177,7 @@ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output tex
 export AWS_REGION=us-east-1
 
 aws iam put-role-policy \
-  --role-name AriaHarnessExecutionRole \
+  --role-name AriaAgentExecutionRole \
   --policy-name AriaMemoryAccess \
   --policy-document "{
     \"Version\": \"2012-10-17\",
@@ -362,7 +362,7 @@ cd ..
 aws bedrock-agentcore control update-agent-runtime \
   --agent-runtime-id <YOUR_RUNTIME_ID> \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
-  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaHarnessExecutionRole" \
+  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
   --description "Module 06 — Memory" \
   --region us-east-1
@@ -479,7 +479,7 @@ python modules/module-02-harness/invoke_aria.py \
 **AccessDeniedException on memory calls**
 
 - Confirm the `AriaMemoryAccess` inline policy is attached to
-  `AriaHarnessExecutionRole` and the Memory ID in the policy ARN matches
+  `AriaAgentExecutionRole` and the Memory ID in the policy ARN matches
   your actual Memory ID.
 
 </details>
