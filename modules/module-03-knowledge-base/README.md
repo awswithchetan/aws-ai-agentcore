@@ -1,5 +1,11 @@
 # Module 03 — Knowledge Base
 
+Module 02 gave us a quick way to spin up Aria using the managed AgentCore Harness. Starting with this module, we begin building the agent ourselves, one production capability at a time.
+
+The first thing our own agent needs is knowledge about ShopSmart. Before we write the custom agent code in Module 04, we will create a Knowledge Base containing the company's official policies, shipping information, payment methods, support details, and FAQs. This gives Aria a reliable source of ShopSmart-specific information instead of expecting the model to answer from general knowledge.
+
+This order is intentional: we establish the grounding layer first, then connect it to our custom agent. In later modules, the same agent will gain tools, memory, authentication, governance, and browser automation.
+
 In this module you will create the **ShopSmart Knowledge Base** — a Bedrock-managed vector store that gives Aria access to ShopSmart's official content. This is persistent infrastructure used by Aria throughout the rest of the course.
 
 Instead of hardcoding FAQ content into the system prompt, Aria retrieves relevant information dynamically from the Knowledge Base. This is how production support agents actually work — content lives in documents, not in prompts.
