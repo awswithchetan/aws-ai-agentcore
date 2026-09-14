@@ -65,7 +65,7 @@ install_homebrew() {
 }
 
 install_macos_packages() {
-  brew install python@3.11 git jq unzip awscli
+  brew install python@3.11 git jq zip unzip awscli
 }
 
 install_macos_docker() {
@@ -88,7 +88,7 @@ install_macos() {
 install_debian_packages() {
   sudo apt-get update || return 1
   sudo apt-get install -y \
-    ca-certificates curl git jq unzip \
+    ca-certificates curl git jq zip unzip \
     python3 python3-venv python3-pip \
     docker.io
 }
@@ -121,7 +121,7 @@ install_rhel_packages() {
   fi
 
   sudo "$package_manager" install -y \
-    ca-certificates curl git jq unzip \
+    ca-certificates curl git jq zip unzip \
     python3 python3-pip \
     docker
 }
@@ -184,7 +184,7 @@ verify_installation() {
   log "Verifying local tools"
 
   local failed=0
-  for command_name in python3 aws docker git curl unzip; do
+  for command_name in python3 aws docker git curl zip unzip; do
     if command_exists "$command_name"; then
       printf 'OK  %-10s %s\n' "$command_name" "$(command -v "$command_name")"
     else
@@ -260,7 +260,7 @@ main() {
           ;;
         *)
           echo "Unsupported Linux distribution: ${ID:-unknown}" >&2
-          echo "Install Python 3.11, AWS CLI v2, Docker, Git, curl, unzip, and jq manually, then rerun the script." >&2
+          echo "Install Python 3.11, AWS CLI v2, Docker, Git, curl, zip, unzip, and jq manually, then rerun the script." >&2
           exit 1
           ;;
       esac

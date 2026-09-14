@@ -51,7 +51,6 @@ Set the Region used by the course:
 
 ```bash
 export AWS_REGION=us-east-1
-export ENVIRONMENT=dev
 ```
 
 The IAM identity deploying the stack and the Aria Runtime execution role need
@@ -107,7 +106,6 @@ Deploy it from the repository root:
 aws cloudformation deploy \
   --template-file modules/module-09-browser/shopsmart-carrier-browser.yaml \
   --stack-name shopsmart-carrier-browser \
-  --parameter-overrides Environment="$ENVIRONMENT" \
   --region "$AWS_REGION"
 ```
 

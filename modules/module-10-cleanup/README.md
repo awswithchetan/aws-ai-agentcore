@@ -14,12 +14,11 @@ Set the course values and confirm the active AWS identity:
 
 ```bash
 export AWS_REGION=us-east-1
-export ENVIRONMENT=dev
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 aws sts get-caller-identity
-printf 'Account: %s\nRegion: %s\nEnvironment: %s\n' \
-  "$AWS_ACCOUNT_ID" "$AWS_REGION" "$ENVIRONMENT"
+printf 'Account: %s\nRegion: %s\n' \
+  "$AWS_ACCOUNT_ID" "$AWS_REGION"
 ```
 
 > The commands use `shopsmart-backend`, `shopsmart-carrier-browser`, `aria`,
@@ -352,7 +351,7 @@ Review the IAM console first:
 - `AriaAgentExecutionRole` — used by the Harness and Runtime.
 - The Gateway service role created for `shopsmart-gateway`.
 - The Knowledge Base service role created for `shopsmart-kb`.
-- `ShopSmartLambdaRole-dev` — normally removed with the backend stack.
+- `ShopSmartLambdaRole` — normally removed with the backend stack.
 
 List the execution role policies before removing them:
 

@@ -4,13 +4,6 @@ Description: >
   served through CloudFront with Origin Access Control. Upload the static site
   assets after the stack is created.
 
-Parameters:
-  Environment:
-    Type: String
-    Default: dev
-    AllowedValues: [dev, staging, prod]
-    Description: Deployment environment
-
 Resources:
   CarrierWebsiteBucket:
     Type: AWS::S3::Bucket
@@ -29,8 +22,6 @@ Resources:
       Tags:
         - Key: Project
           Value: ShopSmart
-        - Key: Environment
-          Value: !Ref Environment
         - Key: Purpose
           Value: SimulatedCarrierWebsite
 
@@ -38,7 +29,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub "shopsmart-carrier-oac-${Environment}"
+        Name: "shopsmart-carrier-oac"
         Description: Allow the ShopSmart CloudFront distribution to read the private carrier site bucket
         OriginAccessControlOriginType: s3
         SigningBehavior: always
@@ -49,7 +40,7 @@ Resources:
     Properties:
       DistributionConfig:
         Enabled: true
-        Comment: !Sub "ShopSmart simulated carrier tracking site (${Environment})"
+        Comment: "ShopSmart simulated carrier tracking site"
         DefaultRootObject: index.html
         HttpVersion: http2
         PriceClass: PriceClass_100
@@ -73,8 +64,6 @@ Resources:
       Tags:
         - Key: Project
           Value: ShopSmart
-        - Key: Environment
-          Value: !Ref Environment
 
   CarrierWebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy

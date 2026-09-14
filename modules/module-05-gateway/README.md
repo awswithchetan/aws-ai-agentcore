@@ -1,14 +1,16 @@
 # Module 05 — Gateway: Connecting Real Tools
 
-In this module you will connect Aria to the ShopSmart backend — real Lambda
-functions backed by DynamoDB. Aria moves from answering only FAQ questions to
-looking up actual orders, searching the product catalog, and submitting support
-requests on behalf of customers.
+In this module you will connect Aria to the ShopSmart backend — the ShopSmart
+REST API, backed by Lambda functions and DynamoDB. Aria moves from answering
+only FAQ questions to looking up actual orders, searching the product catalog,
+and submitting support requests on behalf of customers.
 
 Tools are routed through **AgentCore Gateway** using the ShopSmart REST API as
 an HTTP target. The Gateway parses the OpenAPI spec, exposes each API operation
 as an MCP tool, and the agent discovers them automatically — no hardcoded tool
-definitions in agent code.
+definitions in agent code. The Lambda functions and DynamoDB tables behind the
+API are an implementation detail the agent never sees; it only calls API
+operations.
 
 ---
 
@@ -32,22 +34,6 @@ ShopSmart REST API (API Gateway)
 The API Gateway methods require `AWS_IAM`. AgentCore Gateway signs outbound
 requests with SigV4 using its Gateway service role, while the Runtime role
 authenticates the Runtime-to-Gateway connection.
-
-<details>
-<summary>Why HTTP target instead of Lambda target?</summary>
-
-AgentCore Gateway supports both Lambda and HTTP targets. We use HTTP because:
-
-- The ShopSmart backend already has a REST API (deployed by CloudFormation)
-- The existing Lambda functions stay completely unchanged
-- OpenAPI specs are the industry-standard way to describe REST APIs
-- HTTP targets are more representative of real-world usage — most backends
-  already have an HTTP API
-
-Lambda targets make sense when you're writing a new Lambda specifically to
-serve as a tool, with no HTTP layer in front of it.
-
-</details>
 
 <details>
 <summary>How This Differs from Module 04</summary>
@@ -95,7 +81,6 @@ aws cloudformation deploy \
   --template-file shopsmart-backend/cloudformation/shopsmart-backend.yaml \
   --stack-name shopsmart-backend \
   --parameter-overrides \
-      Environment=dev \
       LambdaCodeBucket=$BUCKET \
   --capabilities CAPABILITY_NAMED_IAM \
   --region $AWS_REGION
@@ -116,9 +101,13 @@ Note down the `ApiBaseUrl` — you'll need it in Step 3 and Step 4.
 
 ## Step 2 — Seed the Database
 
+The backend tables (`shopsmart-orders` and `shopsmart-products`) are created empty
+by CloudFormation. This step loads realistic sample data so Aria's tools have
+something to return — a product catalog to search and orders to look up. It writes
+directly to DynamoDB using Boto3 and is idempotent, so you can safely re-run it.
+
 ```bash
 export AWS_REGION=us-east-1
-export ENVIRONMENT=dev
 python shopsmart-backend/seed_data.py
 ```
 
@@ -126,10 +115,12 @@ Expected output:
 ```
 ✅ All done! Tables are ready for use.
 
-Test customers:
-  C001 — Alice Johnson (2 orders: delivered, shipped)
-  C002 — Bob Smith     (1 order: processing)
-  C003 — Carol White   (1 order: delivered, with return request)
+Test customers (5 orders each):
+  C001 — Alice Johnson (delivered, shipped, processing, delivered >$500, delivered + open return)
+  C002 — Bob Smith     (processing, shipped, delivered, shipped >$500, cancelled)
+  C003 — Carol White   (delivered + open return, delivered, shipped, processing, delivered)
+
+High-value orders (> $500, for order-value policy flows): ORD-1004 (C001), ORD-1009 (C002)
 ```
 
 ### Verify API authentication
@@ -226,7 +217,7 @@ Try these prompts:
    - **Target name**: `ShopSmartAPI`
    - **Target type**: HTTP
    - **Endpoint URL**: paste your `ApiBaseUrl` from Step 1c
-     (e.g. `https://abc123.execute-api.us-east-1.amazonaws.com/dev`)
+     (e.g. `https://abc123.execute-api.us-east-1.amazonaws.com/prod`)
    - **API schema**: select **Inline** and paste the contents of
      `modules/module-05-gateway/shopsmart-api.yaml`
      — but first replace `<API_BASE_URL>` in the `servers.url` field with
@@ -247,7 +238,7 @@ Try these prompts:
        {
          "Effect": "Allow",
          "Action": "execute-api:Invoke",
-         "Resource": "arn:aws:execute-api:<REGION>:<ACCOUNT_ID>:<API_ID>/<ENVIRONMENT>/*/*"
+         "Resource": "arn:aws:execute-api:<REGION>:<ACCOUNT_ID>:<API_ID>/prod/*/*"
        }
      ]
    }

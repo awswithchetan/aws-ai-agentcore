@@ -68,13 +68,16 @@ Review the copied files in `aria-agent/` before deploying:
 3. Search for `AmazonEC2ContainerRegistryReadOnly`
 4. Select it and click **Add permissions**
 
-### Via CLI (Optional)
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 aws iam attach-role-policy \
   --role-name AriaAgentExecutionRole \
   --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
 ```
+
+</details>
 
 <details>
 <summary>Why this permission is needed</summary>
@@ -137,7 +140,8 @@ base is unavailable.
 }
 ```
 
-### Via CLI (Optional)
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export AWS_REGION=us-east-1
@@ -172,6 +176,8 @@ aws iam put-role-policy \
     ]
   }"
 ```
+
+</details>
 
 <details>
 <summary>Why this permission is needed</summary>
@@ -218,7 +224,8 @@ Parameters are stored under the `/aria/` prefix:
    - **Value**: as shown in the table
 3. Click **Create parameter** and repeat for all four
 
-### Via CLI (Optional)
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export KNOWLEDGE_BASE_ID="<your-kb-id-from-module-03>"
@@ -226,6 +233,8 @@ export AWS_REGION=us-east-1
 
 bash aria-agent/scripts/put_ssm_params.sh
 ```
+
+</details>
 
 <details>
 <summary>How to retrieve or validate the model ID</summary>
@@ -361,7 +370,8 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 4. Wait until status shows **Active**
 5. Note down the **Agent Runtime ARN**
 
-#### 3d. Create the Runtime via CLI (Optional)
+<details>
+<summary>3d. Create the Runtime via CLI (Optional)</summary>
 
 ```bash
 aws bedrock-agentcore control create-agent-runtime \
@@ -379,6 +389,8 @@ aws bedrock-agentcore control create-agent-runtime \
   --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaAgentExecutionRole" \
   --region us-east-1
 ```
+
+</details>
 
 ---
 
@@ -443,6 +455,39 @@ aws bedrock-agentcore control create-agent-runtime \
    - `What payment methods do you accept?`
 
 Aria should now retrieve answers from the Knowledge Base documents rather than a hardcoded system prompt.
+
+<details>
+<summary>Troubleshooting — check CloudWatch logs if Aria can't answer</summary>
+
+If Aria replies that the knowledge base is unavailable, or returns a generic
+answer instead of KB content, the runtime logs will show why.
+
+**View the logs:**
+
+1. Go to **AWS Console → CloudWatch → Log groups**
+2. Open `/aws/bedrock-agentcore/runtimes/<your-runtime-id>-DEFAULT`
+3. Open the most recent log stream and read from the top
+
+**What to look for:**
+
+- On startup Aria logs its resolved config, e.g.
+  `Starting Aria with config: AgentConfig(... knowledge_base_id=<set> ...)`.
+  If it shows `knowledge_base_id=<not set>`, the agent never loaded its config.
+- `SSM unavailable (AccessDeniedException); using fallbacks` — the execution role
+  is missing SSM read permissions. Recheck the inline policy from **Step 1c**,
+  especially that it lists **both** `parameter/aria` and `parameter/aria/*` as
+  resources.
+- `Knowledge base retrieval failed: ... AccessDeniedException` — the role can read
+  SSM but is missing `bedrock:Retrieve` on the KB ARN (also **Step 1c**).
+- `Knowledge base retrieval failed: ... ResourceNotFoundException` — the
+  `/aria/knowledge_base_id` parameter points to a KB ID that doesn't exist in this
+  region. Verify the value in Parameter Store.
+
+Configuration is read once at container cold start. After changing an IAM policy
+or SSM parameter, restart the runtime (update it, or wait for the next cold start)
+so the new values take effect.
+
+</details>
 
 ---
 

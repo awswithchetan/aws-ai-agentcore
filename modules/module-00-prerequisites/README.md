@@ -52,7 +52,7 @@ The installer checks or installs:
 - Python 3.11 or newer and `venv`
 - AWS CLI v2
 - Docker Engine or Docker Desktop
-- `curl`, `unzip`, and `jq`
+- `curl`, `zip`, `unzip`, and `jq`
 - Course Python dependencies, including Boto3, Streamlit, and AgentCore SDKs
 
 ## Step 1 — Clone the repository

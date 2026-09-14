@@ -6,12 +6,6 @@ Description: >
 # ── Parameters ────────────────────────────────────────────────────────────────
 
 Parameters:
-  Environment:
-    Type: String
-    Default: dev
-    AllowedValues: [dev, staging, prod]
-    Description: Deployment environment
-
   LambdaCodeBucket:
     Type: String
     Description: S3 bucket containing Lambda deployment zip files
@@ -30,7 +24,7 @@ Resources:
   OrdersTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "shopsmart-orders-${Environment}"
+      TableName: "shopsmart-orders"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: orderId
@@ -52,15 +46,13 @@ Resources:
       Tags:
         - Key: Project
           Value: ShopSmart
-        - Key: Environment
-          Value: !Ref Environment
 
   # ── DynamoDB — Products ─────────────────────────────────────────────────────
 
   ProductsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "shopsmart-products-${Environment}"
+      TableName: "shopsmart-products"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: productId
@@ -73,15 +65,13 @@ Resources:
       Tags:
         - Key: Project
           Value: ShopSmart
-        - Key: Environment
-          Value: !Ref Environment
 
   # ── IAM Role — Lambda execution ─────────────────────────────────────────────
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "ShopSmartLambdaRole-${Environment}"
+      RoleName: "ShopSmartLambdaRole"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -114,7 +104,7 @@ Resources:
   ListOrdersFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "shopsmart-list-orders-${Environment}"
+      FunctionName: "shopsmart-list-orders"
       Runtime: python3.11
       Handler: list_orders.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -134,7 +124,7 @@ Resources:
   GetOrderFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "shopsmart-get-order-${Environment}"
+      FunctionName: "shopsmart-get-order"
       Runtime: python3.11
       Handler: get_order.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -154,7 +144,7 @@ Resources:
   GetProductFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "shopsmart-get-product-${Environment}"
+      FunctionName: "shopsmart-get-product"
       Runtime: python3.11
       Handler: get_product.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -174,7 +164,7 @@ Resources:
   SearchProductsFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "shopsmart-search-products-${Environment}"
+      FunctionName: "shopsmart-search-products"
       Runtime: python3.11
       Handler: search_products.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -194,7 +184,7 @@ Resources:
   SubmitRequestFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "shopsmart-submit-request-${Environment}"
+      FunctionName: "shopsmart-submit-request"
       Runtime: python3.11
       Handler: submit_request.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
@@ -214,7 +204,7 @@ Resources:
   ShopSmartApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Sub "shopsmart-api-${Environment}"
+      Name: "shopsmart-api"
       Description: ShopSmart backend API for Aria agent tools
       EndpointConfiguration:
         Types: [REGIONAL]
@@ -343,15 +333,15 @@ Resources:
       - SubmitRequestMethod
     Properties:
       RestApiId: !Ref ShopSmartApi
-      Description: !Sub "ShopSmart API ${Environment} deployment with IAM authorization"
+      Description: "ShopSmart API deployment with IAM authorization"
 
   ApiStage:
     Type: AWS::ApiGateway::Stage
     Properties:
       RestApiId: !Ref ShopSmartApi
       DeploymentId: !Ref ApiDeploymentIamAuth
-      StageName: !Ref Environment
-      Description: !Sub "ShopSmart API ${Environment} stage"
+      StageName: "prod"
+      Description: "ShopSmart API prod stage"
 
   # ── Lambda permissions — allow API Gateway to invoke each function ──────────
 
@@ -403,26 +393,26 @@ Outputs:
     Description: ShopSmart API Gateway REST API ID
     Value: !Ref ShopSmartApi
     Export:
-      Name: !Sub "ShopSmartApiId-${Environment}"
+      Name: "ShopSmartApiId"
 
   ApiInvokeArn:
     Description: ARN pattern for invoking all ShopSmart API methods
-    Value: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ShopSmartApi}/${Environment}/*/*"
+    Value: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ShopSmartApi}/prod/*/*"
 
   ApiBaseUrl:
     Description: ShopSmart API base URL (used as AgentCore Gateway HTTP target)
-    Value: !Sub "https://${ShopSmartApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Value: !Sub "https://${ShopSmartApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
     Export:
-      Name: !Sub "ShopSmartApiBaseUrl-${Environment}"
+      Name: "ShopSmartApiBaseUrl"
 
   OrdersTableName:
     Description: DynamoDB orders table name
     Value: !Ref OrdersTable
     Export:
-      Name: !Sub "ShopSmartOrdersTable-${Environment}"
+      Name: "ShopSmartOrdersTable"
 
   ProductsTableName:
     Description: DynamoDB products table name
     Value: !Ref ProductsTable
     Export:
-      Name: !Sub "ShopSmartProductsTable-${Environment}"
+      Name: "ShopSmartProductsTable"
