@@ -37,7 +37,7 @@ CrewAI, or any other framework without touching the deployment pipeline.
 
 ---
 
-## Step 1 — Prepare the Module 04 Agent Snapshot
+## Step 1 — Copy the Module 04 Agent Files into the Deployment Workspace
 
 The repository keeps `aria-agent/` as the active deployment directory. Because it is a generated workspace that accumulates capability directories from later modules, first copy the complete Module 04 snapshot into `aria-agent/`. This ensures the image contains only the Runtime and Knowledge Base capabilities introduced here.
 
@@ -59,7 +59,7 @@ Review the copied files in `aria-agent/` before deploying:
 
 ---
 
-## Step 1b — Add ECR Permissions to the Execution Role
+## Step 1b — Add ECR Permissions to the Agent Execution IAM Role
 
 ### Via AWS Console
 
@@ -86,6 +86,108 @@ These are the minimum required for AgentCore to pull a container image — nothi
 The `AriaAgentExecutionRole` from Module 02 didn't need ECR permissions because
 the Harness had no container to pull. Now that we deploy a container image, this
 is required.
+
+</details>
+
+---
+
+## Step 1c — Add SSM and Knowledge Base Permissions to the Agent Execution IAM Role
+
+At runtime, Aria reads its configuration from SSM Parameter Store and retrieves
+answers from the Bedrock Knowledge Base. The execution role needs an inline
+policy granting both. Without it, the agent starts but every Knowledge Base
+lookup fails with an `AccessDeniedException`, and Aria replies that the knowledge
+base is unavailable.
+
+### Via AWS Console
+
+1. Go to **AWS Console → IAM → Roles → `AriaAgentExecutionRole`**
+2. Click **Add permissions → Create inline policy**
+3. Select the **JSON** tab and paste the policy below
+4. Replace the placeholders:
+   - `<AWS_REGION>` — your region (e.g. `us-east-1`)
+   - `<AWS_ACCOUNT_ID>` — your 12-digit account ID
+   - `<KNOWLEDGE_BASE_ID>` — your KB ID from Module 03
+5. Click **Next**, name it `AriaRuntimeConfigAndKbAccess`, and click **Create policy**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SSMReadAriaConfig",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParametersByPath",
+        "ssm:GetParameters",
+        "ssm:GetParameter"
+      ],
+      "Resource": [
+        "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:parameter/aria",
+        "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:parameter/aria/*"
+      ]
+    },
+    {
+      "Sid": "BedrockKnowledgeBaseRetrieve",
+      "Effect": "Allow",
+      "Action": "bedrock:Retrieve",
+      "Resource": "arn:aws:bedrock:<AWS_REGION>:<AWS_ACCOUNT_ID>:knowledge-base/<KNOWLEDGE_BASE_ID>"
+    }
+  ]
+}
+```
+
+### Via CLI (Optional)
+
+```bash
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export KNOWLEDGE_BASE_ID="<your-kb-id-from-module-03>"
+
+aws iam put-role-policy \
+  --role-name AriaAgentExecutionRole \
+  --policy-name AriaRuntimeConfigAndKbAccess \
+  --policy-document "{
+    \"Version\": \"2012-10-17\",
+    \"Statement\": [
+      {
+        \"Sid\": \"SSMReadAriaConfig\",
+        \"Effect\": \"Allow\",
+        \"Action\": [
+          \"ssm:GetParametersByPath\",
+          \"ssm:GetParameters\",
+          \"ssm:GetParameter\"
+        ],
+        \"Resource\": [
+          \"arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/aria\",
+          \"arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/aria/*\"
+        ]
+      },
+      {
+        \"Sid\": \"BedrockKnowledgeBaseRetrieve\",
+        \"Effect\": \"Allow\",
+        \"Action\": \"bedrock:Retrieve\",
+        \"Resource\": \"arn:aws:bedrock:${AWS_REGION}:${AWS_ACCOUNT_ID}:knowledge-base/${KNOWLEDGE_BASE_ID}\"
+      }
+    ]
+  }"
+```
+
+<details>
+<summary>Why this permission is needed</summary>
+
+- `ssm:GetParametersByPath`, `ssm:GetParameters`, and `ssm:GetParameter` let the
+  agent load its configuration (model ID, KB ID, tuning values) from Parameter
+  Store at startup. Module 04 only calls `GetParametersByPath`, but the other two
+  are included so later modules that fetch individual parameters work without a
+  policy change. Two resource ARNs are required: `parameter/aria` matches the path
+  itself (what `GetParametersByPath` authorizes against), and `parameter/aria/*`
+  matches the individual parameters under it. Omitting the first ARN causes an
+  `AccessDeniedException` on startup, the config silently falls back to defaults
+  (empty KB ID), and Aria reports the knowledge base as unavailable.
+- `bedrock:Retrieve` on the specific Knowledge Base ARN lets the
+  `retrieve_from_knowledge_base` tool query the KB. Scoping the resource to your
+  KB ARN keeps the role least-privilege instead of granting broad Bedrock access.
 
 </details>
 
@@ -126,6 +228,40 @@ bash aria-agent/scripts/put_ssm_params.sh
 ```
 
 <details>
+<summary>How to retrieve or validate the model ID</summary>
+
+The default model ID is `us.anthropic.claude-sonnet-4-6`. If you want to use a
+different model, or confirm the ID is valid in your region, list the available
+Claude models before writing the `/aria/model_id` parameter.
+
+List Claude inference profiles (these carry the `us.` cross-region prefix):
+
+```bash
+aws bedrock list-inference-profiles \
+  --region us-east-1 \
+  --query "inferenceProfileSummaries[?contains(inferenceProfileId, 'claude')].inferenceProfileId" \
+  --output table
+```
+
+Or list the underlying foundation models directly:
+
+```bash
+aws bedrock list-foundation-models \
+  --region us-east-1 \
+  --query "modelSummaries[?contains(modelId, 'claude')].modelId" \
+  --output table
+```
+
+Copy the ID you want and set it before running the script:
+
+```bash
+export MODEL_ID="us.anthropic.claude-sonnet-4-6"
+bash aria-agent/scripts/put_ssm_params.sh
+```
+
+</details>
+
+<details>
 <summary>Why SSM instead of environment variables?</summary>
 
 - Model upgrades and KB replacements are configuration changes, not code changes
@@ -160,7 +296,10 @@ export AWS_REGION=us-east-1
 
 ## Step 3 — Deploy to AgentCore Runtime
 
-### Option A — Docker (Recommended)
+This course uses **Docker** as the deployment method throughout. All subsequent
+modules assume a container-based Runtime, so follow the Docker steps below to
+stay aligned with the rest of the course. A Zip-based alternative is included in
+the collapsible section at the end of this step if you prefer not to use Docker.
 
 #### 3a. Create an ECR repository
 
@@ -212,16 +351,17 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
 2. Configure:
    - **Agent runtime name**: `aria`
-   - **Description**: ShopSmart AI customer support agent
-   - **Deployment method**: Container image
+   - **Compute**: leave the default **MicroVM** (the other option, **Instances (new)**, is not needed for this course)
+   - **Additional details** (expand this section): set **Description** to `ShopSmart AI customer support agent`
+   - **Agent source**: choose **ECR Container** (not S3 source)
    - **Image URI**: `<your-ecr-repo-uri>:latest`
-3. **Environment variables**: add `AWS_REGION` only (e.g. `us-east-1`)
-4. **Execution role**: select `AriaAgentExecutionRole`
-5. Click **Create agent runtime**
-6. Wait until status shows **Active**
-7. Note down the **Agent Runtime ARN**
+   - **Permissions**: select **Use another role** and choose `AriaAgentExecutionRole`
+   - **Environment variables** (under **Advanced configurations**): add a new variable `AWS_REGION` (e.g. `us-east-1`)
+3. Click **Create agent runtime**
+4. Wait until status shows **Active**
+5. Note down the **Agent Runtime ARN**
 
-#### 3c. Create the Runtime via CLI (Optional)
+#### 3d. Create the Runtime via CLI (Optional)
 
 ```bash
 aws bedrock-agentcore control create-agent-runtime \
@@ -242,11 +382,16 @@ aws bedrock-agentcore control create-agent-runtime \
 
 ---
 
-### Option B — Zip (Simpler, no Docker required)
+<details>
+<summary>Alternative — Deploy with Zip (no Docker required)</summary>
+
+The rest of this course assumes a Docker-based deployment. Use this Zip option
+only if you cannot use Docker; some later modules may reference container-specific
+steps you'll need to adapt.
 
 #### Via AWS Console
 
-1. Run the Module 04 snapshot copy commands from Step 1 so `aria-agent/` contains the Module 04 files.
+1. Run the Module 04 file copy commands from Step 1 so `aria-agent/` contains the Module 04 files.
 2. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
 3. Configure:
    - **Agent runtime name**: `aria`
@@ -261,7 +406,7 @@ aws bedrock-agentcore control create-agent-runtime \
 
 #### Via CLI (Optional)
 
-Before creating the zip, run the Module 04 snapshot copy commands from Step 1 so `aria-agent/` contains the Module 04 files.
+Before creating the zip, run the Module 04 file copy commands from Step 1 so `aria-agent/` contains the Module 04 files.
 
 ```bash
 cd aria-agent
@@ -283,6 +428,8 @@ aws bedrock-agentcore control create-agent-runtime \
   --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaAgentExecutionRole" \
   --region us-east-1
 ```
+
+</details>
 
 ---
 
