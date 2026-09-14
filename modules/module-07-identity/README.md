@@ -384,6 +384,7 @@ Copy the Module 07 agent files to `aria-agent/`:
 ```bash
 cp modules/module-07-identity/agent.py aria-agent/agent.py
 cp modules/module-07-identity/config.py aria-agent/config.py
+cp modules/module-07-identity/requirements.txt aria-agent/requirements.txt
 cp modules/module-07-identity/Dockerfile aria-agent/Dockerfile
 cp -r modules/module-07-identity/identity aria-agent/
 ```

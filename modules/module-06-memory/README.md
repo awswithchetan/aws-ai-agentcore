@@ -249,6 +249,7 @@ bash aria-agent/scripts/put_ssm_params.sh
 ```bash
 cp modules/module-06-memory/agent.py aria-agent/agent.py
 cp modules/module-06-memory/config.py aria-agent/config.py
+cp modules/module-06-memory/requirements.txt aria-agent/requirements.txt
 cp modules/module-06-memory/Dockerfile aria-agent/Dockerfile
 cp -r modules/module-06-memory/memory aria-agent/
 ```

@@ -173,21 +173,11 @@ install_root_dependencies() {
   python -m pip install -r "$REPO_ROOT/requirements.txt"
 }
 
-install_agent_dependencies() {
-  [[ -f "$REPO_ROOT/aria-agent/requirements.txt" ]] || return 0
-
-  # shellcheck disable=SC1091
-  source "$VENV_DIR/bin/activate"
-  log "Installing agent and Browser development dependencies"
-  python -m pip install -r "$REPO_ROOT/aria-agent/requirements.txt"
-}
-
 install_python_environment() {
   log "Setting up the Python virtual environment"
   run_step "python-venv" create_python_environment || return 1
   run_step "python-pip" upgrade_pip || return 1
-  run_step "python-root-dependencies" install_root_dependencies || return 1
-  run_step "python-agent-dependencies" install_agent_dependencies
+  run_step "python-root-dependencies" install_root_dependencies
 }
 
 verify_installation() {

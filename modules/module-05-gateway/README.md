@@ -355,6 +355,8 @@ aws ssm put-parameter \
 ```bash
 cp modules/module-05-gateway/agent.py aria-agent/agent.py
 cp modules/module-05-gateway/config.py aria-agent/config.py
+cp modules/module-05-gateway/requirements.txt aria-agent/requirements.txt
+cp modules/module-05-gateway/Dockerfile aria-agent/Dockerfile
 cp modules/module-05-gateway/app.py streamlit-ui/app.py
 ```
 

@@ -1,0 +1,8 @@
+# Module 06 agent dependencies
+# Module 05 dependencies plus the AgentCore Memory session integration.
+
+boto3>=1.38.0
+bedrock-agentcore>=1.22.0
+strands-agents>=1.54.0
+requests>=2.32.0
+mcp-proxy-for-aws>=0.1.0

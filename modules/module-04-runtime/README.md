@@ -39,7 +39,7 @@ CrewAI, or any other framework without touching the deployment pipeline.
 
 ## Step 1 — Prepare the Module 04 Agent Snapshot
 
-The repository keeps `aria-agent/` as the active deployment directory. Because the repository contains the completed agent from later modules, first copy the complete Module 04 snapshot into `aria-agent/`. This ensures the image contains only the Runtime and Knowledge Base capabilities introduced here.
+The repository keeps `aria-agent/` as the active deployment directory. Because it is a generated workspace that accumulates capability directories from later modules, first copy the complete Module 04 snapshot into `aria-agent/`. This ensures the image contains only the Runtime and Knowledge Base capabilities introduced here.
 
 Run from the repository root:
 
@@ -52,10 +52,10 @@ cp modules/module-04-runtime/Dockerfile aria-agent/Dockerfile
 
 Review the copied files in `aria-agent/` before deploying:
 
-- [`aria-agent/agent.py`](../../aria-agent/agent.py) — Aria agent code
-- [`aria-agent/config.py`](../../aria-agent/config.py) — Runtime and Knowledge Base configuration
-- [`aria-agent/requirements.txt`](../../aria-agent/requirements.txt) — Module 04 dependencies
-- [`aria-agent/Dockerfile`](../../aria-agent/Dockerfile) — Module 04 container definition
+- [`agent.py`](agent.py) — Aria agent code
+- [`config.py`](config.py) — Runtime and Knowledge Base configuration
+- [`requirements.txt`](requirements.txt) — Module 04 dependencies
+- [`Dockerfile`](Dockerfile) — Module 04 container definition
 
 ---
 
@@ -265,7 +265,7 @@ Before creating the zip, run the Module 04 snapshot copy commands from Step 1 so
 
 ```bash
 cd aria-agent
-zip -r ../aria-agent.zip .
+zip -r ../aria-agent.zip agent.py config.py requirements.txt
 cd ..
 
 aws bedrock-agentcore control create-agent-runtime \

@@ -22,7 +22,6 @@ COPY --from=builder /install /usr/local
 # Copy agent source — Module 07 adds identity/ for JWT claim extraction
 COPY --chown=aria:aria agent.py .
 COPY --chown=aria:aria config.py .
-COPY --chown=aria:aria tools/    tools/
 COPY --chown=aria:aria memory/   memory/
 COPY --chown=aria:aria identity/ identity/
 

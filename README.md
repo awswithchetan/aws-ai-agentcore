@@ -93,12 +93,13 @@ aws-ai-agentcore/
 │   │   ├── store-hours-and-support.md
 │   │   └── general-faq.md
 │   └── seed_data.py            # DynamoDB seed script
-├── aria-agent/                 # AgentCore agent code
-│   ├── agent.py                # Main agent code
-│   ├── agentcore.yaml          # Agent configuration
-│   ├── tools/                  # Tool definitions
-│   ├── policies/               # Cedar policy files
-│   └── requirements.txt
+├── aria-agent/                 # Active/generated Runtime deployment workspace
+│   ├── .dockerignore           # Shared container build exclusions
+│   ├── memory/                 # Added by Module 06
+│   ├── identity/               # Added by Module 07
+│   ├── policies/               # Added by Module 08
+│   ├── tools/                  # Added by Module 09
+│   └── scripts/                # Deployment helper scripts
 ├── streamlit-ui/               # Chat UI
 │   └── app.py
 └── modules/                    # Step-by-step module guides
@@ -113,6 +114,8 @@ aws-ai-agentcore/
 ---
 
 ## Prerequisites
+
+The module folders are the source of truth for the progressive agent snapshots. `aria-agent/` is the active/generated deployment workspace: each Runtime module copies its `agent.py`, `config.py`, `requirements.txt`, and `Dockerfile` into that directory before building or packaging. Module 08 is policy-only and does not provide a new agent snapshot.
 
 - AWS Account with appropriate permissions
 - Python 3.11+
