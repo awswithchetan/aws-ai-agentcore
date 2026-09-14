@@ -29,7 +29,7 @@ The Harness needs an IAM role to invoke Bedrock models and write logs. Create th
 4. Click **Next**
 5. Attach these managed policies:
    - `AmazonBedrockFullAccess`
-   - `AmazonBedrockAgentCoreFullAccess`
+   - `BedrockAgentCoreFullAccess`
    - `CloudWatchLogsFullAccess`
 6. Click **Next**
 7. **Role name**: `AriaAgentExecutionRole`
