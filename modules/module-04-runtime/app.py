@@ -11,7 +11,7 @@ Usage:
     streamlit run app.py
 
     # For Harness agent (Module 02):
-    export ARIA_HARNESS_ARN="arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria-harness-XXXXXXXX"
+    export ARIA_HARNESS_ARN="arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria_harness-XXXXXXXX"
     export AWS_REGION="us-east-1"
     streamlit run app.py
 """

@@ -192,16 +192,16 @@ aws bedrock-agentcore-control delete-memory \
 
 ### Harness
 
-Module 02 normally deletes `aria-harness` before Module 03. If it still exists:
+Module 02 normally deletes `aria_harness` before Module 03. If it still exists:
 
 ```bash
 aws bedrock-agentcore-control list-harnesses \
   --region "$AWS_REGION" \
-  --query "harnesses[?name=='aria-harness']" \
+  --query "harnesses[?name=='aria_harness']" \
   --output table
 
 aws bedrock-agentcore-control delete-harness \
-  --harness-id <your-aria-harness-id> \
+  --harness-id <your-harness-id> \
   --region "$AWS_REGION"
 ```
 

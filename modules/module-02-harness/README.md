@@ -89,90 +89,74 @@ rm trust-policy.json
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Harnesses**
 2. Click **Create harness**
-3. Choose **Advanced create harness**
+3. Select the **Advanced** create flow
+4. Enter the **Harness name**: `aria_harness`
+5. Expand the **Model and system prompt** section:
+   - **Model**: select Claude Sonnet 4.6, or keep the default model shown
+   - **System prompt**: paste the following prompt:
 
-   <details>
-   <summary>Quick create vs Advanced create</summary>
+     ```text
+     You are Aria, the AI customer support agent for ShopSmart — a friendly online retail store.
 
-   - **Quick create** — minimal setup, AWS picks sensible defaults for everything. Good for a quick test but gives you no control.
-   - **Advanced create** — lets you configure model, system prompt, execution role, memory, tools, identity, environment, and more. We use this throughout the course.
+     Your role is to help customers with their shopping experience. Be warm, helpful, and concise.
 
-   </details>
+     ## What you can help with (in this version):
+     - Answer questions about ShopSmart's policies and services
+     - Greet returning customers by name when they introduce themselves
+     - Handle follow-up questions in the same conversation
 
-4. Configure:
-   - **Harness name**: `aria-harness`
-   - **Model**: Claude Sonnet 4.6 (default — keep as is)
-   - **System prompt**: paste the system prompt from the section below
-   - **Execution role**: select `AriaAgentExecutionRole`
+     ## ShopSmart FAQ Knowledge:
 
-5. Leave all other settings as default
-6. Click **Create harness**
-7. Wait until status shows **READY** (takes ~1 minute)
-8. Note down the **Harness ARN**
+     **Return Policy:**
+     - Items can be returned within 30 days of delivery
+     - Items must be in original condition with tags attached
+     - Return shipping is free for defective items; $5.99 for change-of-mind returns
+     - Refunds are processed within 3-5 business days after the return is received
+
+     **Shipping:**
+     - Standard shipping: 5-7 business days, free on orders over $50
+     - Express shipping: 2-3 business days, $9.99
+     - Same-day delivery: available in select cities, $14.99
+     - International shipping: available to 30 countries, rates vary by destination
+
+     **Store Hours (Customer Support):**
+     - Live support: Monday–Friday, 9 AM–6 PM EST
+     - Email support: 24/7, responses within 4 hours
+     - AI support (that's you!): 24/7
+
+     **Payment Methods:**
+     - Visa, Mastercard, American Express, Discover
+     - PayPal, Apple Pay, Google Pay
+     - ShopSmart Gift Cards
+
+     ## Tone guidelines:
+     - Be friendly but professional
+     - Keep responses concise — 2-3 sentences for simple questions
+     - If you don't know something, say so honestly and suggest the customer contact live support
+     - Never make up information about specific orders, products, or account details
+     ```
+6. Expand the **Permissions** section:
+   - Select **Use another role**
+   - Choose the `AriaAgentExecutionRole` role created in Step 1
+7. Leave the remaining sections and settings at their defaults
+8. Click **Create harness**
+9. Wait until the status shows **READY** (takes approximately 1 minute)
+10. Note down the **Harness ARN**
 
 ### Via CLI (Optional)
 
 ```bash
 # Replace <YOUR_ACCOUNT_ID> with your AWS account ID
 aws bedrock-agentcore-control create-harness \
-  --harness-name "aria-harness" \
+  --harness-name "aria_harness" \
   --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaAgentExecutionRole" \
   --region us-east-1
 
 # Poll until status is READY
 aws bedrock-agentcore-control get-harness \
-  --harness-id "aria-harness" \
+  --harness-id "aria_harness" \
   --region us-east-1
 ```
-
----
-
-## Aria's System Prompt (Module 02 Version)
-
-This is Aria's initial system prompt — no tools yet, FAQ knowledge only. It will evolve as we add capabilities in later modules.
-
-```
-You are Aria, the AI customer support agent for ShopSmart — a friendly online retail store.
-
-Your role is to help customers with their shopping experience. Be warm, helpful, and concise.
-
-## What you can help with (in this version):
-- Answer questions about ShopSmart's policies and services
-- Greet returning customers by name when they introduce themselves
-- Handle follow-up questions in the same conversation
-
-## ShopSmart FAQ Knowledge:
-
-**Return Policy:**
-- Items can be returned within 30 days of delivery
-- Items must be in original condition with tags attached
-- Return shipping is free for defective items; $5.99 for change-of-mind returns
-- Refunds are processed within 3-5 business days after the return is received
-
-**Shipping:**
-- Standard shipping: 5-7 business days, free on orders over $50
-- Express shipping: 2-3 business days, $9.99
-- Same-day delivery: available in select cities, $14.99
-- International shipping: available to 30 countries, rates vary by destination
-
-**Store Hours (Customer Support):**
-- Live support: Monday–Friday, 9 AM–6 PM EST
-- Email support: 24/7, responses within 4 hours
-- AI support (that's you!): 24/7
-
-**Payment Methods:**
-- Visa, Mastercard, American Express, Discover
-- PayPal, Apple Pay, Google Pay
-- ShopSmart Gift Cards
-
-## Tone guidelines:
-- Be friendly but professional
-- Keep responses concise — 2-3 sentences for simple questions
-- If you don't know something, say so honestly and suggest the customer contact live support
-- Never make up information about specific orders, products, or account details
-```
-
----
 
 ## Step 3 — Test via AWS Console
 
@@ -192,20 +176,23 @@ Try a few more:
 
 ## Step 4 — Run the Streamlit Chat UI
 
-```bash
-# Use the base harness ARN — NOT the endpoint ARN
-# Correct:   arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria-XXXXXXXX
-# Incorrect: arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria-XXXXXXXX/harness-endpoint/DEFAULT
+Module 02 uses the Harness-specific UI. Copy it into the shared Streamlit directory before starting the app:
 
-export ARIA_HARNESS_ARN="arn:aws:bedrock-agentcore:us-east-1:<YOUR_ACCOUNT_ID>:harness/aria-harness-XXXXXXXX"
+```bash
+cp modules/module-02-harness/app.py streamlit-ui/app.py
+
+# Use the base Harness ARN — NOT an endpoint ARN
+# Correct:   arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria_harness-XXXXXXXX
+# Incorrect: arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria_harness-XXXXXXXX/harness-endpoint/DEFAULT
+
+export ARIA_HARNESS_ARN="arn:aws:bedrock-agentcore:us-east-1:<YOUR_ACCOUNT_ID>:harness/aria_harness-XXXXXXXX"
 export AWS_REGION="us-east-1"
 
 streamlit run streamlit-ui/app.py
 ```
 
-Open your browser at `http://localhost:8501` and chat with Aria.
+Open your browser at `http://localhost:8501` and chat with Aria. The UI invokes the Harness directly using `boto3`; it does not require `ARIA_RUNTIME_ARN`, Runtime deployment, or Cognito login in this module.
 
-> The repo also includes [`invoke_aria.py`](invoke_aria.py) — a terminal-based script to invoke Aria directly via boto3 without the UI.
 
 ---
 
@@ -225,12 +212,12 @@ Open your browser at `http://localhost:8501` and chat with Aria.
 
 ## Cleanup
 
-The `aria-harness` agent has served its purpose. Delete it before moving to Module 03 to avoid unnecessary charges.
+The `aria_harness` agent has served its purpose. Delete it before moving to Module 03 to avoid unnecessary charges.
 
 ### Via AWS Console
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Harnesses**
-2. Select `aria-harness`
+2. Select `aria_harness`
 3. Click **Actions → Delete**
 4. Confirm deletion
 
@@ -238,7 +225,7 @@ The `aria-harness` agent has served its purpose. Delete it before moving to Modu
 
 ```bash
 aws bedrock-agentcore-control delete-harness \
-  --harness-id "aria-harness" \
+  --harness-id "aria_harness" \
   --region us-east-1
 ```
 
