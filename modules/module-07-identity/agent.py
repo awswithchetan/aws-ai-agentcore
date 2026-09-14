@@ -76,7 +76,7 @@ def retrieve_from_knowledge_base(query: str) -> str:
             knowledgeBaseId=cfg.knowledge_base_id,
             retrievalQuery={"text": query},
             retrievalConfiguration={
-                "vectorSearchConfiguration": {
+                "managedSearchConfiguration": {
                     "numberOfResults": cfg.kb_num_results,
                 }
             },
