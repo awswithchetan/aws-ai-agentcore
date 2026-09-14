@@ -65,6 +65,10 @@ aws iam attach-role-policy \
 
 aws iam attach-role-policy \
   --role-name AriaAgentExecutionRole \
+  --policy-arn arn:aws:iam::aws:policy/BedrockAgentCoreFullAccess
+
+aws iam attach-role-policy \
+  --role-name AriaAgentExecutionRole \
   --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
 
 # Get Role ARN
