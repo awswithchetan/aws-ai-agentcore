@@ -11,7 +11,8 @@ This is the agent that evolves through the rest of the course. Every subsequent 
 ```
 aria-agent/
 ├── agent.py          # Aria agent code (Strands + BedrockAgentCoreApp)
-├── requirements.txt  # Python dependencies
+├── config.py         # Runtime and Knowledge Base configuration
+├── requirements.txt  # Module 04 Python dependencies
 ├── Dockerfile        # Container image (recommended — framework-agnostic)
 └── .dockerignore     # Keeps the build context clean
 ```
@@ -36,14 +37,25 @@ CrewAI, or any other framework without touching the deployment pipeline.
 
 ---
 
-## Step 1 — Review the Agent Code
+## Step 1 — Prepare the Module 04 Agent Snapshot
 
-The agent code lives in the `aria-agent/` folder at the root of the repo:
+The repository keeps `aria-agent/` as the active deployment directory. Because the repository contains the completed agent from later modules, first copy the complete Module 04 snapshot into `aria-agent/`. This ensures the image contains only the Runtime and Knowledge Base capabilities introduced here.
+
+Run from the repository root:
+
+```bash
+cp modules/module-04-runtime/agent.py aria-agent/agent.py
+cp modules/module-04-runtime/config.py aria-agent/config.py
+cp modules/module-04-runtime/requirements.txt aria-agent/requirements.txt
+cp modules/module-04-runtime/Dockerfile aria-agent/Dockerfile
+```
+
+Review the copied files in `aria-agent/` before deploying:
 
 - [`aria-agent/agent.py`](../../aria-agent/agent.py) — Aria agent code
-- [`aria-agent/requirements.txt`](../../aria-agent/requirements.txt) — Python dependencies
-
-Open `aria-agent/agent.py` in VS Code and review the structure before deploying.
+- [`aria-agent/config.py`](../../aria-agent/config.py) — Runtime and Knowledge Base configuration
+- [`aria-agent/requirements.txt`](../../aria-agent/requirements.txt) — Module 04 dependencies
+- [`aria-agent/Dockerfile`](../../aria-agent/Dockerfile) — Module 04 container definition
 
 ---
 
@@ -172,8 +184,11 @@ aws ecr get-login-password --region $AWS_REGION \
   | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
 # Build and push
+cp modules/module-04-runtime/agent.py aria-agent/agent.py
+cp modules/module-04-runtime/config.py aria-agent/config.py
+cp modules/module-04-runtime/requirements.txt aria-agent/requirements.txt
+cp modules/module-04-runtime/Dockerfile aria-agent/Dockerfile
 cd aria-agent
-cp ../modules/module-04-runtime/Dockerfile .
 docker build --platform linux/arm64 -t aria-agent .
 docker tag aria-agent:latest $ECR_REPO:latest
 docker push $ECR_REPO:latest
@@ -231,19 +246,22 @@ aws bedrock-agentcore control create-agent-runtime \
 
 #### Via AWS Console
 
-1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
-2. Configure:
+1. Run the Module 04 snapshot copy commands from Step 1 so `aria-agent/` contains the Module 04 files.
+2. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
+3. Configure:
    - **Agent runtime name**: `aria`
    - **Deployment method**: Code (zip file)
    - **Runtime**: Python 3.11
    - **Entrypoint file**: `agent.py`
-3. Zip the `aria-agent/` folder contents and upload
-4. **Execution role**: select `AriaAgentExecutionRole`
-5. Click **Create agent runtime**
-6. Wait until status shows **Active**
-7. Note down the **Agent Runtime ARN**
+4. Zip the `aria-agent/` folder contents and upload
+5. **Execution role**: select `AriaAgentExecutionRole`
+6. Click **Create agent runtime**
+7. Wait until status shows **Active**
+8. Note down the **Agent Runtime ARN**
 
 #### Via CLI (Optional)
+
+Before creating the zip, run the Module 04 snapshot copy commands from Step 1 so `aria-agent/` contains the Module 04 files.
 
 ```bash
 cd aria-agent
