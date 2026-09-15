@@ -139,7 +139,7 @@ export API_URL=$(aws cloudformation describe-stacks \
   --output text --region $AWS_REGION)
 ```
 
-#### Negative test: unsigned request
+#### Unauthenticated request (should fail)
 
 ```bash
 curl -i "$API_URL/orders?customerId=C001"
@@ -148,10 +148,26 @@ curl -i "$API_URL/orders?customerId=C001"
 Expected result: `403 Forbidden`. This confirms that anonymous callers cannot
 invoke the backend.
 
-#### Signed test: Python validator
+#### Authenticated API test with awscurl
 
-The repository includes a small validator that uses the AWS SDK credential
-chain and botocore to sign requests. It does not require a third-party CLI:
+[`awscurl`](https://github.com/okigan/awscurl) signs requests with SigV4 using
+the AWS SDK credential chain, so it's the quickest way to confirm a signed
+request succeeds. It was installed with the course dependencies in Module 00
+(run `pip install awscurl` if it isn't on your PATH).
+
+```bash
+awscurl --service execute-api --region "$AWS_REGION" \
+  "$API_URL/orders?customerId=C001"
+```
+
+Expected result: a `200` response with Alice Johnson's orders. The IAM identity
+running this command needs `execute-api:Invoke` permission on the API.
+
+<details>
+<summary>Alternative — authenticated API test with the Python validator (no third-party CLI)</summary>
+
+If you prefer not to install `awscurl`, the repository includes a small
+validator that uses botocore and the AWS SDK credential chain to sign requests:
 
 ```bash
 python modules/module-05-gateway/validate_api.py \
@@ -169,68 +185,30 @@ AWS_PROFILE=shopsmart-admin python modules/module-05-gateway/validate_api.py \
   --region "$AWS_REGION"
 ```
 
-`awscurl` is an optional community alternative for interactive checks:
-
-```bash
-awscurl --service execute-api --region "$AWS_REGION" \
-  "$API_URL/orders?customerId=C001"
-```
-
-#### End-to-end test through AgentCore Gateway
-
-After configuring the Gateway target with IAM outbound authorization, test the
-actual tool path in the Streamlit UI. The Gateway service role, rather than
-your local developer identity, must have `execute-api:Invoke` permission.
-
-Try these prompts:
-
-- `My customer ID is C001. What are my orders?`
-- `Tell me about order ORD-1001`
-- `Search for backpacks`
-- `I want to return order ORD-1001`
-- `What is your return policy?` — still works via Knowledge Base
-
+</details>
 
 ---
 
 ## Step 3 — Create the AgentCore Gateway
 
-### Via AWS Console
+### 3a. Create the Gateway service role
 
-1. Go to **AWS Console → Amazon Bedrock → AgentCore → Gateways**
-2. Click **Create gateway**
-3. **Gateway details**:
-   - **Gateway name**: `shopsmart-gateway`
-   - Expand **Additional configurations**:
-     - **Description**: `ShopSmart tool gateway — orders, products, returns`
-     - **Exception level debug**: ✅ enabled (helpful during development)
+The Gateway assumes this role to call the ShopSmart API on the agent's behalf.
+It needs a trust policy for the AgentCore service and `execute-api:Invoke` on
+the API.
 
-4. **Inbound Auth configurations**: select **IAM**
-   > The agent's execution role signs requests to the Gateway with SigV4 —
-   > no separate JWT config needed here.
+#### Via AWS Console
 
-5. **Permissions**:
-   - Select **Use an IAM service role**
-   - Choose **Create and use a new service role**
-
-6. **Target** — configure the ShopSmart REST API:
-   - **Target name**: `ShopSmartAPI`
-   - **Target type**: HTTP
-   - **Endpoint URL**: paste your `ApiBaseUrl` from Step 1c
-     (e.g. `https://abc123.execute-api.us-east-1.amazonaws.com/prod`)
-   - **API schema**: select **Inline** and paste the contents of
-     `modules/module-05-gateway/shopsmart-api.yaml`
-     — but first replace `<API_BASE_URL>` in the `servers.url` field with
-     your actual ApiBaseUrl
-   - **Outbound Auth**: IAM / SigV4
-     - Use the Gateway service role for credentials
-     - Configure the AWS service as `execute-api`
-     - Use the same AWS Region as the API Gateway REST API
-
-   The Gateway service role must be allowed to invoke this API. Add an IAM
-   policy like the following to that role, replacing the placeholders with the
-   values from the CloudFormation outputs:
-
+1. Go to **AWS Console → IAM → Roles → Create role**
+2. **Trusted entity type**: **AWS service**
+3. **Use case**: scroll down and select **Amazon Bedrock AgentCore** — this
+   automatically configures the correct trust policy
+4. Click **Next**, then skip attaching managed policies and click **Next** again
+5. **Role name**: `ShopSmartGatewayRole`, then click **Create role**
+6. Open the role → **Add permissions → Create inline policy** → **JSON**, and paste
+   the `execute-api:Invoke` policy below. Replace `<REGION>`, `<ACCOUNT_ID>`, and
+   `<API_ID>` with your values (find `<API_ID>` in the `ApiId` CloudFormation output).
+   Name it `ShopSmartApiInvoke`.
    ```json
    {
      "Version": "2012-10-17",
@@ -244,26 +222,91 @@ Try these prompts:
    }
    ```
 
-   You can retrieve the API ID with:
+<details>
+<summary>Via CLI (Optional)</summary>
 
-   ```bash
-   aws cloudformation describe-stacks \
-     --stack-name shopsmart-backend \
-     --query "Stacks[0].Outputs[?OutputKey=='ApiId'].OutputValue" \
-     --output text --region "$AWS_REGION"
-   ```
+```bash
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export API_ID=$(aws cloudformation describe-stacks \
+  --stack-name shopsmart-backend \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiId'].OutputValue" \
+  --output text --region "$AWS_REGION")
+
+aws iam create-role \
+  --role-name ShopSmartGatewayRole \
+  --assume-role-policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "GatewayAssumeRolePolicy",
+        "Effect": "Allow",
+        "Principal": { "Service": "bedrock-agentcore.amazonaws.com" },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  }'
+
+aws iam put-role-policy \
+  --role-name ShopSmartGatewayRole \
+  --policy-name ShopSmartApiInvoke \
+  --policy-document "{
+    \"Version\": \"2012-10-17\",
+    \"Statement\": [{
+      \"Effect\": \"Allow\",
+      \"Action\": \"execute-api:Invoke\",
+      \"Resource\": \"arn:aws:execute-api:${AWS_REGION}:${AWS_ACCOUNT_ID}:${API_ID}/prod/*/*\"
+    }]
+  }"
+```
+
+</details>
+
+### 3b. Create the gateway (Console)
+
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Gateways**
+2. Click **Create gateway**
+3. **Gateway details**:
+   - **Gateway name**: `shopsmart-gateway`
+   - Expand **Additional configurations**:
+     - **Description**: `ShopSmart tool gateway — orders, products, returns`
+     - **Exception level debug**: ✅ enabled (helpful during development)
+
+4. **Inbound Auth configurations**: select **Use IAM Permission**
+   > The agent's execution role signs requests to the Gateway with SigV4 —
+   > no separate JWT config needed here.
+
+5. **Permissions**:
+   - Select **Use an IAM service role**
+   - Choose **Use an existing service role** and select `ShopSmartGatewayRole`
+     (created in step 3a)
+
+6. **Target** — configure the ShopSmart REST API:
+   - **Target protocol**: **MCP Target**
+   - **Target name**: `ShopSmartAPI`
+   - **Passthrough**: leave the default **Do not use passthrough — default aggregated**
+   - **Target type**: **REST API**
+     (other options include MCP Server, Lambda ARN, API Gateway, and Connectors)
+   - **REST API type**: **OpenAPI schema**
+   - **Schema**: paste the contents of `modules/module-05-gateway/shopsmart-api.yaml`
+     into the inline schema box — but first replace `<API_BASE_URL>` in the
+     `servers.url` field with your `ApiBaseUrl` from Step 1c
+     (e.g. `https://abc123.execute-api.us-east-1.amazonaws.com/prod`)
+   - **Outbound Auth configuration**: **IAM Role**
+     - **Service**: `execute-api`
+     - **Region** (optional): the same Region as the API Gateway REST API
+   - **Additional configurations**: no extra headers or query parameters are needed
+
+   Selecting **IAM Role** here sets the outbound auth type only — there's no role
+   picker. The Gateway signs the outbound call with the service role you selected
+   in step 5 (`ShopSmartGatewayRole`), which already carries the
+   `execute-api:Invoke` permission from step 3a.
 
 7. Click **Create gateway**
 
 8. Note down from the gateway detail page:
-   - **Gateway ARN** — needed for Cedar policies in Module 08
-   - **Gateway endpoint URL** — needed for agent code in Step 5
-
-> **Tool naming**: AgentCore Gateway names each tool as
-> `<TargetName>___<operationId>`. With target name `ShopSmartAPI` and
-> operationId `list_orders`, the MCP tool name visible to the agent is
-> `ShopSmartAPI___list_orders`. This is what you'll reference in Cedar
-> policies in Module 08.
+   - **Gateway Resource ARN** — needed for Cedar policies in Module 08 and agent code in Step 5
+   - **Gateway Resource URL** — needed for agent code in Step 5
 
 ---
 
@@ -295,10 +338,11 @@ otherwise the `MCPClient` connection will fail with an authorization error.
 Replace `<GATEWAY_ARN>` with the Gateway ARN from Step 3
 (e.g. `arn:aws:bedrock-agentcore:us-east-1:<account>:gateway/shopsmart-gateway-XXXXXXXXXX`)
 
-4. **Policy name**: `Gateway_Permissions`
+4. **Policy name**: `AriaAgentGatewayPermissions`
 5. Click **Create policy**
 
-### Via CLI (Optional)
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -311,7 +355,7 @@ GATEWAY_ARN=$(aws bedrock-agentcore-control get-gateway \
 
 aws iam put-role-policy \
   --role-name AriaAgentExecutionRole \
-  --policy-name Gateway_Permissions \
+  --policy-name AriaAgentGatewayPermissions \
   --policy-document "{
     \"Version\": \"2012-10-17\",
     \"Statement\": [{
@@ -322,11 +366,27 @@ aws iam put-role-policy \
   }"
 ```
 
+</details>
+
 ---
 
 ## Step 5 — Save the Gateway Endpoint to SSM
 
-### Via CLI (Optional)
+Store the Gateway Resource URL from Step 3 in SSM so the agent can read it at
+startup (the same pattern used for the other `/aria/` parameters).
+
+### Via AWS Console
+
+1. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
+2. Configure:
+   - **Name**: `/aria/gateway_endpoint`
+   - **Tier**: Standard
+   - **Type**: String
+   - **Value**: your Gateway Resource URL from Step 3
+3. Click **Create parameter**
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export GATEWAY_ENDPOINT=<your-gateway-endpoint-url>
@@ -338,6 +398,8 @@ aws ssm put-parameter \
   --overwrite \
   --region $AWS_REGION
 ```
+
+</details>
 
 ---
 
@@ -438,9 +500,22 @@ Wait for the runtime status to return to **Ready**.
 ## Step 8 — Test
 
 The API authentication checks above validate the backend directly. Now test
-the complete tool path through AgentCore Gateway in the Streamlit UI:
+the complete tool path through AgentCore Gateway in the Streamlit UI.
 
-- `What are my orders?` — Aria asks for customer ID, then lists from DynamoDB
+Make sure you copied the Module 05 `app.py` to `streamlit-ui/app.py` in Step 6,
+then launch it:
+
+```bash
+export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:$AWS_ACCOUNT_ID:runtime/<your-runtime-id>"
+export AWS_REGION="us-east-1"
+streamlit run streamlit-ui/app.py
+```
+
+Aria does not know who the customer is yet (that comes with Memory in Module 06),
+so she asks for the customer ID in the conversation when she needs one. Try these
+prompts:
+
+- `What are my orders?` — Aria asks for your customer ID, then lists from DynamoDB
 - `My customer ID is C001. What are my orders?`
 - `Tell me about order ORD-1001`
 - `Search for backpacks`
