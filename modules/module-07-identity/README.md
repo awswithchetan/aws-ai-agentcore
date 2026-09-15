@@ -1,15 +1,15 @@
 # Module 07 — Identity: Auth Done Right
 
-In this module you will add **real customer authentication**. Instead of the
+In this module you will add real customer authentication. Instead of the
 manual Customer ID text input from Module 06 — where anyone could type any ID
-and see that customer's data — customers now log in via **Amazon Cognito**. The
+and see that customer's data — customers now log in via Amazon Cognito. The
 Streamlit UI gets a signed JWT from Cognito, sends it as a Bearer token, and
 AgentCore Runtime validates it before the request ever reaches your agent code.
 
 This closes a real security gap. The customer's identity is no longer something
 the client claims — it is derived server-side from the verified token. The
 agent reads `custom:customer_id` from the JWT claims (never from the request
-payload), so a logged-in customer can only ever pull up **their own** orders,
+payload), so a logged-in customer can only ever pull up their own orders,
 returns, and memory. There is no way for a client to pass someone else's
 customer ID and view their data.
 
@@ -70,13 +70,13 @@ agent.py
 Response returned to Streamlit UI
 ```
 
-> **Downstream API authentication:** Cognito protects the customer-facing
+> Downstream API authentication: Cognito protects the customer-facing
 > Streamlit-to-Runtime request. The ShopSmart API is protected separately with
 > `AWS_IAM`; AgentCore Gateway signs its API Gateway requests with SigV4 using
 > the Gateway service role. The customer's Cognito token is not used as the
 > API Gateway credential.
 
-> **Why two tokens?** The Cognito access_token is what the Runtime validates
+> Why two tokens? The Cognito access_token is what the Runtime validates
 > (it carries `client_id`), but it doesn't contain user profile claims. The
 > id_token carries `name`, `email`, and `custom:customer_id`. We send the
 > access_token as the Bearer for validation and the id_token in a custom header
@@ -90,50 +90,50 @@ Response returned to Streamlit UI
 
 ### Via AWS Console
 
-1. Go to **AWS Console → Amazon Cognito → User pools → Create user pool**
+1. Go to AWS Console → Amazon Cognito → User pools → Create user pool
 
-2. **Define your application**:
-   - Select **Single-page application (SPA)**
+2. Define your application:
+   - Select Single-page application (SPA)
 
-3. **Name your application**:
-   - **Application name**: `shopsmart-streamlit`
+3. Name your application:
+   - Application name: `shopsmart-streamlit`
 
-4. **Configure options**:
-   - **Sign-in identifiers**: check **Email**
-   - **Self-registration**: ☐ disabled
+4. Configure options:
+   - Sign-in identifiers: check Email
+   - Self-registration: ☐ disabled
 
      > We create the three test users manually in Step 2 to match the seeded
      > DynamoDB data. Enabling self-registration would let anyone sign up, but
      > new accounts won't have orders in the database.
 
-   - **Required attributes for sign-up**: open the dropdown and add **name**
+   - Required attributes for sign-up: open the dropdown and add name
      (Aria uses this to greet customers — it must be collected at sign-up)
-   - **Return URL**: `http://localhost:8501`
+   - Return URL: `http://localhost:8501`
      (Cognito redirects here after login — must match exactly)
 
-5. Click **Create user directory**
+5. Click Create user directory
 
-6. **Add a custom attribute** for the ShopSmart customer ID.
+6. Add a custom attribute for the ShopSmart customer ID.
 
    Cognito auto-generates `sub` as a UUID — it won't match `C001`/`C002`/`C003`
    in DynamoDB. We use a custom attribute to carry the application customer ID
    alongside the Cognito identity.
 
-   Go to your new user pool → open the **Sign-up** tab → in the **Custom
-   attributes** section click **Add custom attributes**:
-   - **Name**: `customer_id`  *(Cognito will prefix it — it becomes `custom:customer_id` in the JWT)*
-   - **Type**: String
-   - **Mutable**: ✅
-   - Click **Save changes**
+   Go to your new user pool → open the Sign-up tab → in the Custom
+   attributes section click Add custom attributes:
+   - Name: `customer_id`  *(Cognito will prefix it — it becomes `custom:customer_id` in the JWT)*
+   - Type: String
+   - Mutable: ✅
+   - Click Save changes
 
    > Custom attributes are permanent — you cannot rename or remove one after
    > adding it, so enter the name `customer_id` exactly. Cognito also does not
    > allow custom attributes to be marked as required.
 
-7. **Verify the app client can read and write the custom attribute.**
+7. Verify the app client can read and write the custom attribute.
 
-   Go to **App clients → shopsmart-streamlit → Attribute permissions**:
-   - Confirm `custom:customer_id` has both **Read** and **Write** enabled.
+   Go to App clients → shopsmart-streamlit → Attribute permissions:
+   - Confirm `custom:customer_id` has both Read and Write enabled.
      Cognito enables both by default for newly added custom attributes, so
      there is usually nothing to change here — just confirm it, and save if
      you make any adjustment.
@@ -141,28 +141,33 @@ Response returned to Streamlit UI
    > This permission is what lets the app client set `custom:customer_id` when
    > a user is created and include it in the token claims the agent reads.
 
-8. **Verify the app client's OpenID Connect scopes.**
+8. Configure the app client's scopes and sign-out URL.
 
-   The SPA quick-create flow doesn't let you choose OAuth scopes, and the
-   default set may not include `profile`. The Streamlit login requests
-   `openid email profile`, so the app client must allow all three — otherwise
-   the hosted UI returns an **invalid request** error on sign-in.
+   The SPA quick-create flow doesn't expose OAuth scopes or a sign-out URL, and
+   the defaults are often incomplete. The Streamlit UI needs both set correctly,
+   otherwise sign-in or sign-out fails with an invalid request error.
 
-   Go to **App clients → shopsmart-streamlit → Login pages → Edit**:
-   - Under **OpenID Connect scopes**, ensure **OpenID**, **Email**, and
-     **Profile** are all selected (add **Profile** if it's missing).
-   - Click **Save changes**
+   Go to App clients → shopsmart-streamlit → Login pages → Edit and set:
+   - OpenID Connect scopes: ensure OpenID, Email, and Profile
+     are all selected (add Profile if it's missing). The login requests
+     `openid email profile`; `profile` is what makes the `name` claim available
+     in the token, which Aria uses to greet the customer.
+   - Allowed sign-out URLs: add `http://localhost:8501`. Without this, the
+     Sign out button redirects to a Cognito URL that Cognito rejects (it
+     bounces to an invalid-request page).
+   - Confirm Allowed callback URLs still contains `http://localhost:8501`.
+   - Click Save changes
 
-   > `profile` is what makes the `name` claim available in the token, which Aria
-   > uses to greet the customer. Without it, sign-in fails with an invalid
-   > request error.
+   > If either the scopes or the sign-out URL is wrong, the hosted UI shows
+   > "invalid request" — on sign-in for a missing scope, on sign-out for a
+   > missing sign-out URL.
 
 9. Note down from the User Pool detail page:
-   - **User Pool ID** — shown at the top (e.g. `us-east-1_XXXXXXXXX`)
-   - **App client ID** — under the **App clients** tab
-   - **Cognito domain** — under **Branding → Domain**
+   - User Pool ID — shown at the top (e.g. `us-east-1_XXXXXXXXX`)
+   - App client ID — under the App clients tab
+   - Cognito domain — under Branding → Domain
      (e.g. `https://shopsmart-streamlit-jvklra.auth.us-east-1.amazoncognito.com`)
-   - **Discovery URL** — the OpenID Connect discovery endpoint for your pool,
+   - Discovery URL — the OpenID Connect discovery endpoint for your pool,
      which you'll need for the Runtime's JWT authorizer in Step 3. It's derived
      from your region and User Pool ID:
      ```
@@ -224,10 +229,10 @@ echo "Cognito Domain: $COGNITO_DOMAIN"
 ## Step 2 — Create Test Users
 
 Create a user for each ShopSmart test customer. Users log in with their
-**email address**. The `custom:customer_id` attribute maps them to the correct
+email address. The `custom:customer_id` attribute maps them to the correct
 DynamoDB records.
 
-> Unlike the other steps in this module, this one leads with the **CLI**. The
+> Unlike the other steps in this module, this one leads with the CLI. The
 > Cognito console Create-user flow can't set a custom attribute or a permanent
 > password in one go — it creates the user with a temporary password (forcing a
 > reset on first login) and requires a separate edit to add `custom:customer_id`.
@@ -274,18 +279,18 @@ The console can't set the custom attribute or a permanent password during
 creation, so it's a two-step process per user and the first login will force a
 password reset.
 
-1. Go to your user pool → **Users → Create user**
+1. Go to your user pool → Users → Create user
 2. For each user:
-   - **Invitation message**: select **Don't send an invitation**
-   - **Email address**: e.g. `alice@example.com`
-   - **Mark email address as verified**: ✅
-   - **Password**: set `ShopSmart1!` (this will be a **temporary** password)
-   - Choose **Create**
-3. Open each user from the **Users** list → **Edit** **User attributes**, then
-   set **both** of these in the same save (the required `name` attribute blocks
+   - Invitation message: select Don't send an invitation
+   - Email address: e.g. `alice@example.com`
+   - Mark email address as verified: ✅
+   - Password: set `ShopSmart1!` (this will be a temporary password)
+   - Choose Create
+3. Open each user from the Users list → Edit User attributes, then
+   set both of these in the same save (the required `name` attribute blocks
    saving if left empty):
-   - **name**: e.g. `Alice Johnson`
-   - **custom:customer_id**: e.g. `C001`
+   - name: e.g. `Alice Johnson`
+   - custom:customer_id: e.g. `C001`
 
 Use the same email / name / customer_id values shown in the table above. The
 first login for each user will prompt for a new password (console-created
@@ -298,35 +303,35 @@ passwords are always temporary).
 ## Step 3 — Configure AgentCore Runtime Inbound JWT Authorizer
 
 The Runtime needs to know which Cognito User Pool to trust. You configure
-this with a **Custom JWT Authorizer** on the Runtime itself — AgentCore fetches
+this with a Custom JWT Authorizer on the Runtime itself — AgentCore fetches
 Cognito's public keys automatically from the discovery URL and validates every
 incoming Bearer token.
 
 ### Via AWS Console
 
-1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → aria**
-2. Click **Update runtime**
-3. In the **Protocol** selection, choose **HTTP** (Aria is invoked over the
+1. Go to AWS Console → Amazon Bedrock → AgentCore → Runtime → aria
+2. Click Update runtime
+3. In the Protocol selection, choose HTTP (Aria is invoked over the
    standard HTTP runtime endpoint).
-4. For **Inbound auth type**, select **Use JSON Web Tokens (JWT)**
-   (rather than **Use IAM permissions**).
+4. For Inbound auth type, select Use JSON Web Tokens (JWT)
+   (rather than Use IAM permissions).
 5. Configure the JWT authorizer fields:
-   - **Discovery URL**: the OpenID Connect discovery URL you noted in Step 1
+   - Discovery URL: the OpenID Connect discovery URL you noted in Step 1
      (`https://cognito-idp.us-east-1.amazonaws.com/<USER_POOL_ID>/.well-known/openid-configuration`)
-   - **Allowed clients**: enter your **App client ID** from Step 1
-6. Click **Update runtime**
+   - Allowed clients: enter your App client ID from Step 1
+6. Click Update runtime
 
-   > **Do NOT set Allowed audiences.** The Streamlit UI invokes the runtime
-   > using the Cognito **access token**, which has no `aud` claim (only
+   > Do not set Allowed audiences. The Streamlit UI invokes the runtime
+   > using the Cognito access token, which has no `aud` claim (only
    > `client_id`). If you set an allowed audience, every request fails with
-   > `Claim 'aud' value mismatch`. Validate with **Allowed clients** only.
+   > `Claim 'aud' value mismatch`. Validate with Allowed clients only.
    >
-   > You may also see **Allowed Scopes** and **Custom Claims** fields — leave
+   > You may also see Allowed Scopes and Custom Claims fields — leave
    > these empty for now.
 
 ### Add the Request Headers to the Allowlist (CLI required)
 
-The AWS Console does not currently expose the **Request header allowlist**
+The AWS Console does not currently expose the Request header allowlist
 setting. You must run this CLI command to allow two headers to be forwarded to
 your agent code after the Runtime validates the token:
 
@@ -378,7 +383,7 @@ aws bedrock-agentcore-control update-agent-runtime \
 > console, you must re-supply the artifact, role, and network configuration here
 > alongside the authorizer and header allowlist. Use the same `IMAGE_URI` and
 > `ROLE_ARN` you deployed with (they may differ from the examples if you chose
-> different ECR repo or role names). Note there is **no** `allowedAudience` —
+> different ECR repo or role names). Note there is no `allowedAudience` —
 > only `allowedClients`.
 
 ---
@@ -390,7 +395,7 @@ Streamlit UI can load them without hardcoding.
 
 ### Via AWS Console
 
-Create these parameters in **Systems Manager → Parameter Store**:
+Create these parameters in Systems Manager → Parameter Store:
 
 | Name | Value |
 |---|---|
@@ -544,7 +549,7 @@ aws bedrock-agentcore-control update-agent-runtime \
   --region $AWS_REGION
 ```
 
-Wait for the runtime status to return to **Ready**.
+Wait for the runtime status to return to Ready.
 
 ---
 
@@ -557,22 +562,22 @@ cp modules/module-07-identity/app.py streamlit-ui/app.py
 <details>
 <summary>What changed from Module 06</summary>
 
-The manual Customer ID text input is replaced by a **Cognito login flow**:
+The manual Customer ID text input is replaced by a Cognito login flow:
 
-- Sidebar shows a **Sign in with ShopSmart** button
+- Sidebar shows a Sign in with ShopSmart button
 - Clicking it redirects to the Cognito Hosted UI login page
 - After login, Cognito redirects back to Streamlit with an authorization code
 - Streamlit exchanges the code for an `id_token` (JWT)
 - Every invocation sends `Authorization: Bearer <id_token>` directly over HTTPS
 
-> **Why HTTPS instead of Boto3?**
+> Why HTTPS instead of Boto3?
 > When a runtime is configured with a JWT authorizer, Boto3's
 > `invoke_agent_runtime` cannot pass a Bearer token — it only supports SigV4
 > signing. Invocations must be made via plain HTTPS to the AgentCore endpoint
 > so the `Authorization` header can be included.
 
 - The sidebar shows the logged-in customer's name and email from the token claims
-- A **Sign out** button clears the token and redirects to Cognito's logout endpoint
+- A Sign out button clears the token and redirects to Cognito's logout endpoint
 
 The `ARIA_HARNESS_ARN`, `AWS_REGION`, and Cognito parameters are loaded from
 SSM at startup — no hardcoding required.
@@ -583,7 +588,8 @@ SSM at startup — no hardcoding required.
 
 ## Step 8 — Test
 
-### Run Streamlit
+Start the UI, then work through the tests in order. Together they prove Aria
+identifies the customer from their login and enforces data isolation.
 
 ```bash
 export AWS_REGION=us-east-1
@@ -592,49 +598,50 @@ streamlit run streamlit-ui/app.py
 
 Open `http://localhost:8501`.
 
-### Login flow
+### Test 1 — Log in and get greeted by name
 
-1. Click **Sign in with ShopSmart** in the sidebar
-2. You are redirected to the Cognito Hosted UI
-3. Log in as `alice@example.com` / `ShopSmart1!`
-4. You are redirected back to Streamlit — the sidebar now shows **Alice Johnson**
-5. Send a message: `Hi!` — Aria should greet Alice by name immediately
+1. Click Sign in with ShopSmart in the sidebar.
+2. On the Cognito Hosted UI, log in as `alice@example.com` / `ShopSmart1!`.
+3. You're redirected back to Streamlit — the sidebar now shows Alice Johnson.
+4. Send `Hi!` — Aria should greet Alice by name immediately, without asking
+   who she is.
 
-> Customers log in with their **email address** (the Cognito sign-in
-> identifier), not their customer ID. The `custom:customer_id` attribute
-> (`C001`) is carried inside the token and used internally to look up orders.
+> Customers log in with their email address, not their customer ID. The
+> `custom:customer_id` claim (`C001`) is carried inside the token and used
+> internally to look up orders.
 
-### Verify the token is being validated
+### Test 2 — Aria pulls the logged-in customer's own orders
 
-To confirm the Runtime rejects unauthenticated requests, invoke the HTTPS
-endpoint without a Bearer token:
+Still logged in as Alice (`C001`), confirm Aria fetches the right records from
+the token identity — without you providing a customer ID:
 
-```bash
-RUNTIME_ARN=$(aws bedrock-agentcore-control list-agent-runtimes \
-  --region us-east-1 \
-  --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeArn" \
-  --output text)
+1. `What are my orders?` — Aria lists Alice's orders (ORD-1001 to ORD-1005).
+2. `Tell me about order ORD-1001` — one of Alice's own orders; Aria returns its
+   details.
 
-ESCAPED_ARN=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$RUNTIME_ARN")
+### Test 3 — A customer cannot access another customer's data
 
-# No Authorization header → should return 401 Unauthorized
-curl -s -o /dev/null -w "%{http_code}\n" -X POST \
-  "https://bedrock-agentcore.us-east-1.amazonaws.com/runtimes/${ESCAPED_ARN}/invocations?qualifier=DEFAULT" \
-  -H "Content-Type: application/json" \
-  -d '{"prompt":"hello"}'
-```
+Still logged in as Alice, ask about an order that belongs to Bob (`C002`):
 
-> Note: you cannot test this with `aws bedrock-agentcore invoke-agent-runtime`
-> (Boto3) — once the runtime uses a JWT authorizer, Boto3's SigV4 signing is
-> rejected with an authorization-method-mismatch error, not a clean 401.
+1. `Tell me about order ORD-1008` — this is Bob's order. Aria should not
+   reveal its details; she treats it as not found / not one of your orders.
 
-### Test all three customers
+> This is the security guarantee of the module: the agent scopes every lookup to
+> the `custom:customer_id` from the verified JWT — never to anything in the
+> prompt. Naming someone else's order ID does not grant access to it.
 
-| Login (email) | Expected greeting |
-|---|---|
-| `alice@example.com` / `ShopSmart1!` | "Hi Alice! How can I help you?" |
-| `bob@example.com` / `ShopSmart1!` | "Hi Bob! How can I help you?" |
-| `carol@example.com` / `ShopSmart1!` | "Hi Carol! How can I help you?" |
+### Test 4 — Switch users and confirm isolation both ways
+
+1. Click Sign out, then log in as `bob@example.com` / `ShopSmart1!`.
+2. Send `Hi!` — Aria now greets Bob.
+3. `What are my orders?` — now lists Bob's orders (ORD-1006 to ORD-1010).
+4. `Tell me about order ORD-1001` — this is Alice's order; Aria should not
+   reveal it to Bob.
+
+> Optionally repeat with `carol@example.com` / `ShopSmart1!` (customer `C003`) —
+> Aria should greet Carol and list only her orders (ORD-1011 to ORD-1015).
+
+---
 
 ---
 
