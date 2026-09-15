@@ -154,13 +154,18 @@ def agent_invocation(payload: dict, context) -> dict:
     session_id = getattr(context, "session_id", str(payload.get("session_id", "default")))
 
     # Inject customer identity into the system prompt so Aria knows who she
-    # is talking to.
+    # is talking to. The customer's name and preferences come from long-term
+    # memory (retrieved automatically by the session manager); Aria should use
+    # them directly rather than asking again.
     if customer_id and customer_id != "anonymous":
         system_prompt = SYSTEM_PROMPT + (
             f"\n\n## Current customer\n"
             f"You are speaking with customer ID: {customer_id}. "
-            f"Use any memories you have about this customer to personalise your response. "
-            f"Address them by name if you know it from memory."
+            f"Relevant facts about this customer from previous sessions have been "
+            f"retrieved into your context. If those facts include the customer's "
+            f"name, greet them by name and do not ask for it again. Use their known "
+            f"preferences and history to personalise your response. Only ask for "
+            f"information that is genuinely not present in your context."
         )
     else:
         system_prompt = SYSTEM_PROMPT

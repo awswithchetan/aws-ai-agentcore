@@ -403,7 +403,7 @@ aws ssm put-parameter \
 
 ---
 
-## Step 6 — Update the Agent
+## Step 6 — Update the Agent Code to Use Gateway Tools
 
 ```bash
 cp modules/module-05-gateway/agent.py aria-agent/agent.py
@@ -522,9 +522,12 @@ prompts:
 - `I want to return order ORD-1001`
 - `What is your return policy?` — still works via Knowledge Base
 
-The successful direct validator uses your local IAM principal. The successful
-Streamlit test uses the AgentCore Gateway service role for the API call. These
-are separate authorization checks and both should pass.
+**Great work!** Aria is now connected to real ShopSmart tools through
+AgentCore Gateway. You've gone from a knowledge-base-only agent to one that
+lists and looks up orders, searches products, and files return requests — all
+via tools the agent discovers dynamically over MCP, with no tool definitions
+hardcoded in the agent. The order, product, return, and knowledge-base flows
+are all working end to end.
 
 ---
 

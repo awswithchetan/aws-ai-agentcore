@@ -377,7 +377,7 @@ done
 
 ---
 
-## Step 5 — Update the Agent
+## Step 5 — Update the Agent Code to Read Identity from JWT
 
 Copy the Module 07 agent files to `aria-agent/`:
 

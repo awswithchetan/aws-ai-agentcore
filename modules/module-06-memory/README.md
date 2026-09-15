@@ -5,6 +5,12 @@ customers across sessions. After this module, Aria can greet returning
 customers by name, recall their past issues, and personalise responses
 using facts she has learned over time.
 
+> **Note:** In this module the customer identifies themselves with a Customer ID
+> typed into the sidebar, which is trusted as-is. This keeps the focus on memory
+> scoping. In [Module 07 — Identity](../module-07-identity/README.md) that manual
+> input is replaced by a verified Cognito login, so the customer ID comes from a
+> signed JWT instead of being trusted blindly.
+
 ---
 
 ## What You Will Build
@@ -70,39 +76,12 @@ no namespace paths need to be hardcoded in application code.
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Memory**
 2. Click **Create memory**
 3. Fill in the basic details:
-   - **Name**: `aria-memory`
+   - **Name**: `aria_memory`
    - **Description**: `Persistent memory for Aria customer support agent`
 
 4. Scroll to **Long-term memory extraction strategies — optional**
 
-   <details>
-   <summary>About strategy types</summary>
-
-   You will see three strategy types:
-
-   | Strategy type | When to use |
-   |---|---|
-   | **Built-in strategies** | AWS manages extraction and consolidation — recommended for most use cases |
-   | **Built-in strategy with override** | Start with a built-in strategy but supply your own system prompt |
-   | **Self-managed strategy** | You bring your own extraction logic entirely |
-
-   For Aria, use **Built-in strategies**.
-
-   </details>
-
 5. Click **Add strategy** under Built-in strategies.
-
-   <details>
-   <summary>About built-in strategy types</summary>
-
-   | Built-in strategy | What it extracts |
-   |---|---|
-   | **Semantic Memory** | Key facts and entities from the conversation (e.g. customer preferences, order numbers, issues raised) |
-   | **Summarization** | A concise summary of each session |
-   | **User Preferences** | Explicit preferences stated by the user (e.g. "I prefer express shipping") |
-   | **Episodes** | Episodic records of specific events or interactions |
-
-   </details>
 
    Select **Semantic Memory**. This captures customer facts like name, preferences,
    and past issues as discrete records that can be retrieved in future sessions.
@@ -120,25 +99,51 @@ no namespace paths need to be hardcoded in application code.
 
 9. Note the **Memory ID** — it looks like `mem-XXXXXXXXXX`
 
-### Via CLI
+<details>
+<summary>About strategy types</summary>
+
+You will see three strategy types:
+
+| Strategy type | When to use |
+|---|---|
+| **Built-in strategies** | AWS manages extraction and consolidation — recommended for most use cases |
+| **Built-in strategy with override** | Start with a built-in strategy but supply your own system prompt |
+| **Self-managed strategy** | You bring your own extraction logic entirely |
+
+For Aria, use **Built-in strategies**.
+
+</details>
+
+<details>
+<summary>About built-in strategy types</summary>
+
+| Built-in strategy | What it extracts |
+|---|---|
+| **Semantic Memory** | Key facts and entities from the conversation (e.g. customer preferences, order numbers, issues raised) |
+| **Summarization** | A concise summary of each session |
+| **User Preferences** | Explicit preferences stated by the user (e.g. "I prefer express shipping") |
+| **Episodes** | Episodic records of specific events or interactions |
+
+</details>
+
+<details>
+<summary>Via CLI</summary>
 
 ```bash
 aws bedrock-agentcore-control create-memory \
-  --name aria-memory \
+  --name aria_memory \
   --description "Persistent memory for Aria customer support agent" \
-  --memory-strategies '[{"semanticMemoryStrategy": {"name": "aria-semantic"}}]' \
+  --memory-strategies '[{"semanticMemoryStrategy": {"name": "aria_semantic"}}]' \
   --region us-east-1
 ```
 
-Save the Memory ID:
+Note the **Memory ID** from the command output — you will need it in Step 3.
 
-```bash
-export MEMORY_ID=mem-XXXXXXXXXX
-```
+</details>
 
 ---
 
-## Step 2 — Grant the Execution Role Permission to Use Memory
+## Step 2 — Grant the Aria Agent Execution Role Permission to Use Memory
 
 ### Via AWS Console
 
@@ -154,11 +159,10 @@ export MEMORY_ID=mem-XXXXXXXXXX
       "Sid": "AgentCoreMemory",
       "Effect": "Allow",
       "Action": [
+        "bedrock-agentcore:GetMemory",
+        "bedrock-agentcore:ListEvents",
         "bedrock-agentcore:RetrieveMemoryRecords",
-        "bedrock-agentcore:CreateMemoryRecord",
-        "bedrock-agentcore:UpdateMemoryRecord",
-        "bedrock-agentcore:DeleteMemoryRecord",
-        "bedrock-agentcore:IngestConversationEvents"
+        "bedrock-agentcore:CreateEvent"
       ],
       "Resource": "arn:aws:bedrock-agentcore:us-east-1:<ACCOUNT_ID>:memory/<MEMORY_ID>"
     }
@@ -170,7 +174,8 @@ Replace `<ACCOUNT_ID>` and `<MEMORY_ID>` with your values.
 
 4. Name the policy `AriaMemoryAccess` and click **Create policy**
 
-### Via CLI
+<details>
+<summary>Via CLI</summary>
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -185,16 +190,17 @@ aws iam put-role-policy \
       \"Sid\": \"AgentCoreMemory\",
       \"Effect\": \"Allow\",
       \"Action\": [
+        \"bedrock-agentcore:GetMemory\",
+        \"bedrock-agentcore:ListEvents\",
         \"bedrock-agentcore:RetrieveMemoryRecords\",
-        \"bedrock-agentcore:CreateMemoryRecord\",
-        \"bedrock-agentcore:UpdateMemoryRecord\",
-        \"bedrock-agentcore:DeleteMemoryRecord\",
-        \"bedrock-agentcore:IngestConversationEvents\"
+        \"bedrock-agentcore:CreateEvent\"
       ],
       \"Resource\": \"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:memory/${MEMORY_ID}\"
     }]
   }"
 ```
+
+</details>
 
 ---
 
@@ -228,23 +234,30 @@ Create two parameters in **Systems Manager → Parameter Store**:
 | `/aria/memory_id` | your Memory ID (e.g. `aria_memory-XXXXXXXXXX`) |
 | `/aria/memory_strategy_id` | your Strategy ID (e.g. `semantic_builtin_XXXXX-XXXXXXXXXX`) |
 
-### Via CLI
+<details>
+<summary>Via CLI</summary>
+
+`put_ssm_params.sh` requires `KNOWLEDGE_BASE_ID` and re-writes the
+`knowledge_base_id` parameter on every run, so export your existing KB ID
+alongside the memory variables. `gateway_endpoint` is managed separately and
+is left untouched by this script.
 
 ```bash
+export KNOWLEDGE_BASE_ID=<your-existing-kb-id>
 export MEMORY_ID=<your-memory-id>
 export MEMORY_STRATEGY_ID=<your-strategy-id>
 
+KNOWLEDGE_BASE_ID=$KNOWLEDGE_BASE_ID \
 MEMORY_ID=$MEMORY_ID \
 MEMORY_STRATEGY_ID=$MEMORY_STRATEGY_ID \
 bash aria-agent/scripts/put_ssm_params.sh
 ```
 
-> `knowledge_base_id` and `gateway_endpoint` are already in SSM from earlier
-> modules — no need to set them again here.
+</details>
 
 ---
 
-## Step 4 — Update the Agent
+## Step 4 — Update the Agent Code to Enable Memory
 
 ```bash
 cp modules/module-06-memory/agent.py aria-agent/agent.py
@@ -322,25 +335,7 @@ AgentCore extracts new facts and writes them back to this namespace.
 
 ---
 
-## Step 5 — Update the Streamlit UI
-
-```bash
-cp modules/module-06-memory/app.py streamlit-ui/app.py
-```
-
-<details>
-<summary>What changed from Module 04</summary>
-
-- Sidebar now has a Customer ID text input (e.g. `C001`)
-- Every message sent to the agent includes `customer_id` in the payload
-- Shows a confirmation when a customer ID is set, or an info message when anonymous
-- In Module 07 (Identity) this manual input will be replaced by Cognito login
-
-</details>
-
----
-
-## Step 6 — Rebuild and Deploy
+## Step 5 — Rebuild and Deploy
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -373,34 +368,67 @@ Wait for the runtime status to return to **Ready** before testing.
 
 ---
 
+## Step 6 — Update the Streamlit UI
+
+```bash
+cp modules/module-06-memory/app.py streamlit-ui/app.py
+```
+
+<details>
+<summary>What changed from Module 04</summary>
+
+- Sidebar now has a Customer ID text input (e.g. `C001`)
+- Every message sent to the agent includes `customer_id` in the payload
+- Shows a confirmation when a customer ID is set, or an info message when anonymous
+- In Module 07 (Identity) this manual input will be replaced by Cognito login
+
+</details>
+
+Run the UI:
+
+```bash
+export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:$AWS_ACCOUNT_ID:runtime/<your-runtime-id>"
+export AWS_REGION="us-east-1"
+streamlit run streamlit-ui/app.py
+```
+
+---
+
 ## Step 7 — Test
 
-### First session — introduce yourself
+Memory recall relies on two separate things, so it's worth being clear on what
+each one does before testing:
 
-Set Customer ID to `C001` in the Streamlit sidebar and send:
+- **The sidebar Customer ID** becomes the `customer_id` in the payload, which
+  the agent uses as the **`actor_id`** — the key that scopes memory. It decides
+  *which* customer's memories Aria reads and writes. This must be set, and must
+  stay the same across sessions for recall to work.
+- **What you type in chat** (e.g. "My name is Alice") is the *content* that
+  becomes a memory. Aria only stores it under `C001` because the sidebar already
+  scoped the session to that customer.
 
-```
-My name is Alice and my customer ID is C001.
-I prefer express shipping for all my orders.
-What is your return policy?
-```
+Think of it as: the sidebar ID is the **filing label**; the chat messages are
+the **facts being filed**.
 
-### Second session — verify memory
+### Session 1 — teach Aria some facts
 
-Click **🔄 New Session** in the sidebar (keeps Customer ID, resets session) and send:
+1. In the sidebar, set **Customer ID** to `C001`.
+2. Send a message that states the facts you want remembered:
 
-```
-Hi, my customer ID is C001.
-```
+   ```
+   My name is Alice and I prefer express shipping for all my orders.
+   ```
 
-Aria should greet Alice by name and recall her express shipping preference
-without being told again.
+   You don't need to repeat the customer ID in chat — the sidebar already
+   supplies it. These facts are now written to memory under `actors/C001/`.
 
-### Inspect what AgentCore stored in memory
+### Between sessions — wait, then verify the facts were stored
 
-After the first session completes, AgentCore extracts facts asynchronously and
-writes them to the memory namespace for C001. You can inspect exactly what was
-stored using the CLI:
+Fact extraction is **asynchronous** and can take a few minutes the first time.
+Do not start the recall test until the facts have actually been consolidated —
+retrying too early will return nothing and look like a failure.
+
+Verify what AgentCore stored before moving on:
 
 ```bash
 export MEMORY_ID=$(aws ssm get-parameter --name /aria/memory_id \
@@ -423,16 +451,33 @@ You should see extracted facts like:
 -------------------------------------------------------------------------------------
 |                              ListMemoryRecords                                    |
 +-----------------------------------------------------------------------------------+
-|  The user's name is Alice Johnson.                                                |
+|  The user's name is Alice.                                                        |
 |  The user's customer ID is C001.                                                  |
 |  The user prefers express shipping for all orders.                                |
-|  The user placed order ORD-1001 on 2026-08-25 ...                                 |
 +-----------------------------------------------------------------------------------+
 ```
 
-These are exactly the records Aria retrieves and injects into context at the
-start of the next session. If the table is empty, memory consolidation is still
-in progress — wait a minute and re-run.
+If the table is empty, consolidation is still in progress — wait a few minutes
+and re-run. Only proceed once the facts appear.
+
+### Session 2 — verify recall
+
+1. Click **🔄 New Session** in the sidebar. This starts a **new conversation**
+   (new `session_id`) while **keeping the same Customer ID** (`C001`) — exactly
+   what proves cross-session memory. Confirm the sidebar still shows `C001`.
+2. Send:
+
+   ```
+   Hi, do you know my name?
+   ```
+
+Aria should greet you as Alice and recall your express shipping preference
+**without being told again** — because she loaded those facts from memory for
+`actor_id=C001`.
+
+> If Aria doesn't recall the facts, the most common cause is testing before
+> consolidation finished (see the verification step above), or the sidebar
+> Customer ID being blank or different in Session 2. Both must be `C001`.
 
 <details>
 <summary>Testing with the invoke script</summary>

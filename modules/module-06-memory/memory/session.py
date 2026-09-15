@@ -67,10 +67,15 @@ def get_memory_session_manager(
     # Namespace template uses {actorId} and {memoryStrategyId} placeholders.
     # The SDK resolves these at retrieval time via .format(actorId=..., memoryStrategyId=...).
     # This must match the namespace template on the Memory resource (default for Semantic Memory).
+    #
+    # top_k is deliberately generous: a customer accumulates many records
+    # (orders, addresses, preferences), and a low top_k can crowd out identity
+    # facts like the customer's name for certain query phrasings. relevance_score
+    # is kept low so identity facts are not filtered out by the relevance floor.
     retrieval_config = {
         "/strategies/{memoryStrategyId}/actors/{actorId}/": RetrievalConfig(
-            top_k=5,
-            relevance_score=0.4,
+            top_k=20,
+            relevance_score=0.2,
             strategy_id=cfg.memory_strategy_id,
         ),
     }
