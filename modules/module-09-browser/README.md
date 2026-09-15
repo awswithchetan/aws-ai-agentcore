@@ -333,10 +333,6 @@ For a direct test of the tool behavior, ask:
 What is the latest status of order ORD001?
 ```
 
-Use an order ID from your seeded data if it differs. The agent should not
-invent a tracking status when the order has no tracking number; it should
-explain that tracking is unavailable.
-
 <details>
 <summary>Troubleshooting</summary>
 
@@ -350,26 +346,6 @@ explain that tracking is unavailable.
 | Old tracking result appears | Create a CloudFront invalidation for `/*`. |
 
 </details>
-
-## Cleanup
-
-The stack uses `DeletionPolicy: Delete` for the course bucket. Delete the
-CloudFormation stack only after removing the uploaded objects:
-
-```bash
-aws s3 rm "s3://$CARRIER_BUCKET" --recursive --region "$AWS_REGION"
-aws cloudformation delete-stack \
-  --stack-name shopsmart-carrier-browser \
-  --region "$AWS_REGION"
-
-aws ssm delete-parameter \
-  --name /aria/carrier_tracking_url \
-  --region "$AWS_REGION"
-```
-
-CloudFront distributions can take several minutes to delete. The stack is
-independent of the ShopSmart backend stack, so deleting it does not remove
-orders, products, or the API.
 
 <details>
 <summary>What You Learned</summary>
@@ -385,5 +361,4 @@ orders, products, or the API.
 
 ## Next step
 
-Proceed to [Module 10 — Cleanup](../module-10-cleanup/README.md) to remove the
-course resources when you are finished.
+Proceed to [Module 10 — Cleanup](../module-10-cleanup/README.md)
