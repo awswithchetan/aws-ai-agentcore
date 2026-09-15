@@ -19,6 +19,62 @@ const shipments = {
     location: "Austin, TX",
     estimate: "Delivered yesterday",
     detail: "Package was delivered to the front door."
+  },
+  UPS5566778899: {
+    carrier: "United Parcel Service (simulated)",
+    status: "Delivered",
+    location: "Dallas, TX",
+    estimate: "Delivered on September 5",
+    detail: "Package was delivered to the front door."
+  },
+  FDX1122334455: {
+    carrier: "FedEx (simulated)",
+    status: "Delivered",
+    location: "Austin, TX",
+    estimate: "Delivered on September 8",
+    detail: "Package was delivered to the front door."
+  },
+  UPS2468013579: {
+    carrier: "United Parcel Service (simulated)",
+    status: "In transit",
+    location: "Portland, OR",
+    estimate: "Thursday, September 17",
+    detail: "Package departed the origin facility."
+  },
+  FDX3692581470: {
+    carrier: "FedEx (simulated)",
+    status: "Delivered",
+    location: "Seattle, WA",
+    estimate: "Delivered on September 2",
+    detail: "Package was delivered to the front door."
+  },
+  UPS7418529630: {
+    carrier: "United Parcel Service (simulated)",
+    status: "In transit",
+    location: "Denver, CO",
+    estimate: "Tomorrow by 5:00 PM",
+    detail: "Package is at the local distribution center."
+  },
+  FDX8520741963: {
+    carrier: "FedEx (simulated)",
+    status: "Delivered",
+    location: "Chicago, IL",
+    estimate: "Delivered on September 1",
+    detail: "Package was delivered to the front door."
+  },
+  UPS9513574862: {
+    carrier: "United Parcel Service (simulated)",
+    status: "In transit",
+    location: "Minneapolis, MN",
+    estimate: "Friday, September 18",
+    detail: "Package is in transit to the destination."
+  },
+  FDX1593574862: {
+    carrier: "FedEx (simulated)",
+    status: "Delivered",
+    location: "Chicago, IL",
+    estimate: "Delivered on August 20",
+    detail: "Package was delivered to the front door."
   }
 };
 
@@ -35,7 +91,7 @@ function renderShipment(trackingNumber) {
   if (!shipment) {
     result.innerHTML = `
       <div class="error">No shipment found for <strong>${normalized || "that number"}</strong>.</div>
-      <p class="hint">Try UPS1234567890, FDX9876543210, or UPS0011223344.</p>`;
+      <p class="hint">Try any of the tracking numbers from your orders.</p>`;
     return;
   }
 
