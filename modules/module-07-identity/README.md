@@ -1,10 +1,17 @@
 # Module 07 — Identity: Auth Done Right
 
-In this module you will add **real authentication** to Aria. Instead of the
-manual Customer ID text input from Module 06, customers will log in via
-**Amazon Cognito**. The Streamlit UI gets a signed JWT from Cognito, sends it
-as a Bearer token, and AgentCore Runtime validates it before the request ever
-reaches your agent code.
+In this module you will add **real customer authentication**. Instead of the
+manual Customer ID text input from Module 06 — where anyone could type any ID
+and see that customer's data — customers now log in via **Amazon Cognito**. The
+Streamlit UI gets a signed JWT from Cognito, sends it as a Bearer token, and
+AgentCore Runtime validates it before the request ever reaches your agent code.
+
+This closes a real security gap. The customer's identity is no longer something
+the client claims — it is derived server-side from the verified token. The
+agent reads `custom:customer_id` from the JWT claims (never from the request
+payload), so a logged-in customer can only ever pull up **their own** orders,
+returns, and memory. There is no way for a client to pass someone else's
+customer ID and view their data.
 
 By the end of this module, Aria knows *who* she is talking to with
 cryptographic certainty — no more trusting whatever the client says.
@@ -88,16 +95,6 @@ Response returned to Streamlit UI
 2. **Define your application**:
    - Select **Single-page application (SPA)**
 
-   <details>
-   <summary>Why SPA and not Traditional Web Application?</summary>
-
-   Streamlit uses the authorization code flow without a client secret — SPAs
-   are public clients designed for exactly this. Cognito automatically enables
-   PKCE for SPA clients. Traditional Web Application requires a client secret,
-   which a browser-based app cannot securely store.
-
-   </details>
-
 3. **Name your application**:
    - **Application name**: `shopsmart-streamlit`
 
@@ -122,18 +119,27 @@ Response returned to Streamlit UI
    in DynamoDB. We use a custom attribute to carry the application customer ID
    alongside the Cognito identity.
 
-   Go to your new user pool → **User pool properties** → **Custom attributes → Add custom attribute**:
+   Go to your new user pool → open the **Sign-up** tab → in the **Custom
+   attributes** section click **Add custom attributes**:
    - **Name**: `customer_id`  *(Cognito will prefix it — it becomes `custom:customer_id` in the JWT)*
    - **Type**: String
    - **Mutable**: ✅
    - Click **Save changes**
 
-7. **Allow the app client to read and write the custom attribute.**
+   > Custom attributes are permanent — you cannot rename or remove one after
+   > adding it, so enter the name `customer_id` exactly. Cognito also does not
+   > allow custom attributes to be marked as required.
 
-   Go to **App clients → shopsmart-streamlit → Edit**:
-   - Under **Read attributes**: add `custom:customer_id`
-   - Under **Write attributes**: add `custom:customer_id`
-   - Click **Save changes**
+7. **Verify the app client can read and write the custom attribute.**
+
+   Go to **App clients → shopsmart-streamlit → Attribute permissions**:
+   - Confirm `custom:customer_id` has both **Read** and **Write** enabled.
+     Cognito enables both by default for newly added custom attributes, so
+     there is usually nothing to change here — just confirm it, and save if
+     you make any adjustment.
+
+   > This permission is what lets the app client set `custom:customer_id` when
+   > a user is created and include it in the token claims the agent reads.
 
 8. Note down from the User Pool detail page:
    - **User Pool ID** — shown at the top (e.g. `us-east-1_XXXXXXXXX`)
@@ -198,63 +204,72 @@ Create a user for each ShopSmart test customer. Users log in with their
 **email address**. The `custom:customer_id` attribute maps them to the correct
 DynamoDB records.
 
-### Via AWS Console
+> Unlike the other steps in this module, this one leads with the **CLI**. The
+> Cognito console Create-user flow can't set a custom attribute or a permanent
+> password in one go — it creates the user with a temporary password (forcing a
+> reset on first login) and requires a separate edit to add `custom:customer_id`.
+> The CLI sets the email, `name`, `custom:customer_id`, and a permanent password
+> in a single pass for all three users.
 
-1. Go to your user pool → **Users → Create user**
-2. Create three users with these values:
+### Via CLI
 
-| Email (username) | Name | custom:customer_id | Temporary password |
-|---|---|---|---|
-| `alice@example.com` | `Alice Johnson` | `C001` | `ShopSmart1!` |
-| `bob@example.com` | `Bob Smith` | `C002` | `ShopSmart1!` |
-| `carol@example.com` | `Carol White` | `C003` | `ShopSmart1!` |
-
-For each user:
-- **Invitation message**: Don't send (select **Don't send an invitation**)
-- **Email address**: as above
-- **Mark email address as verified**: ✅
-- **Name**: as above
-- **Temporary password**: set a custom password → `ShopSmart1!` and mark as permanent
-
-> The `custom:customer_id` attribute may not appear in the Create User form.
-> If it doesn't, create the user first, then open the user detail page →
-> **Edit** to add the attribute value.
-
-### Via CLI (Optional)
-
-<details>
-<summary>Create test users via CLI</summary>
+Run the helper script in this module directory. It creates all three users with
+the email, `name`, `custom:customer_id`, and a permanent password (no forced
+reset), and is safe to re-run — it updates existing users instead of failing.
 
 ```bash
 export USER_POOL_ID=<your-user-pool-id>
 export AWS_REGION=us-east-1
 
-for USER in "C001|alice@example.com|Alice Johnson" \
-            "C002|bob@example.com|Bob Smith" \
-            "C003|carol@example.com|Carol White"; do
-  IFS='|' read -r CUSTOMER_ID EMAIL NAME <<< "$USER"
-
-  aws cognito-idp admin-create-user \
-    --user-pool-id $USER_POOL_ID \
-    --username "$EMAIL" \
-    --user-attributes \
-        Name=email,Value=$EMAIL \
-        Name=email_verified,Value=true \
-        Name=name,Value="$NAME" \
-        Name="custom:customer_id",Value="$CUSTOMER_ID" \
-    --message-action SUPPRESS \
-    --region $AWS_REGION
-
-  aws cognito-idp admin-set-user-password \
-    --user-pool-id $USER_POOL_ID \
-    --username "$EMAIL" \
-    --password "ShopSmart1!" \
-    --permanent \
-    --region $AWS_REGION
-
-  echo "✓ Created $CUSTOMER_ID — $NAME ($EMAIL)"
-done
+bash modules/module-07-identity/create_test_users.sh
 ```
+
+This creates three users, each logging in with the email/password below:
+
+| Email (username) | Password | name | custom:customer_id |
+|---|---|---|---|
+| `alice@example.com` | `ShopSmart1!` | `Alice Johnson` | `C001` |
+| `bob@example.com` | `ShopSmart1!` | `Bob Smith` | `C002` |
+| `carol@example.com` | `ShopSmart1!` | `Carol White` | `C003` |
+
+> Override the default password with `export USER_PASSWORD='...'` before running,
+> and target a specific profile with `AWS_PROFILE=my-profile`.
+
+<details>
+<summary>What the script does</summary>
+
+For each of the three customers it runs `admin-create-user` (or
+`admin-update-user-attributes` if the user already exists) to set the email,
+verified-email flag, `name`, and `custom:customer_id`, then
+`admin-set-user-password --permanent` so the first login does not force a
+password reset. The Cognito console cannot do either of those during user
+creation, which is why this step uses a script.
+
+</details>
+
+<details>
+<summary>Via AWS Console (more steps — CLI above is recommended)</summary>
+
+The console can't set the custom attribute or a permanent password during
+creation, so it's a two-step process per user and the first login will force a
+password reset.
+
+1. Go to your user pool → **Users → Create user**
+2. For each user:
+   - **Invitation message**: select **Don't send an invitation**
+   - **Email address**: e.g. `alice@example.com`
+   - **Mark email address as verified**: ✅
+   - **Password**: set `ShopSmart1!` (this will be a **temporary** password)
+   - Choose **Create**
+3. Open each user from the **Users** list → **Edit** **User attributes**, then
+   set **both** of these in the same save (the required `name` attribute blocks
+   saving if left empty):
+   - **name**: e.g. `Alice Johnson`
+   - **custom:customer_id**: e.g. `C001`
+
+Use the same email / name / customer_id values shown in the table above. The
+first login for each user will prompt for a new password (console-created
+passwords are always temporary).
 
 </details>
 
