@@ -479,26 +479,6 @@ Aria should greet you as Alice and recall your express shipping preference
 > consolidation finished (see the verification step above), or the sidebar
 > Customer ID being blank or different in Session 2. Both must be `C001`.
 
-<details>
-<summary>Testing with the invoke script</summary>
-
-```bash
-# Session 1 — establish facts
-python modules/module-02-harness/invoke_aria.py \
-  --runtime-id <YOUR_RUNTIME_ID> \
-  --payload '{"prompt": "My name is Alice and I prefer express shipping. Customer ID: C001.", "customer_id": "C001", "session_id": "test-session-1"}'
-
-# Session 2 — test recall (different session_id, same customer_id)
-python modules/module-02-harness/invoke_aria.py \
-  --runtime-id <YOUR_RUNTIME_ID> \
-  --payload '{"prompt": "Hi! My customer ID is C001. Do you know my name?", "customer_id": "C001", "session_id": "test-session-2"}'
-```
-
-> Memory consolidation (fact extraction) happens asynchronously after session
-> end. Allow a minute or two between sessions when testing.
-
-</details>
-
 ---
 
 <details>
