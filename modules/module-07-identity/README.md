@@ -141,11 +141,34 @@ Response returned to Streamlit UI
    > This permission is what lets the app client set `custom:customer_id` when
    > a user is created and include it in the token claims the agent reads.
 
-8. Note down from the User Pool detail page:
+8. **Verify the app client's OpenID Connect scopes.**
+
+   The SPA quick-create flow doesn't let you choose OAuth scopes, and the
+   default set may not include `profile`. The Streamlit login requests
+   `openid email profile`, so the app client must allow all three — otherwise
+   the hosted UI returns an **invalid request** error on sign-in.
+
+   Go to **App clients → shopsmart-streamlit → Login pages → Edit**:
+   - Under **OpenID Connect scopes**, ensure **OpenID**, **Email**, and
+     **Profile** are all selected (add **Profile** if it's missing).
+   - Click **Save changes**
+
+   > `profile` is what makes the `name` claim available in the token, which Aria
+   > uses to greet the customer. Without it, sign-in fails with an invalid
+   > request error.
+
+9. Note down from the User Pool detail page:
    - **User Pool ID** — shown at the top (e.g. `us-east-1_XXXXXXXXX`)
    - **App client ID** — under the **App clients** tab
    - **Cognito domain** — under **Branding → Domain**
      (e.g. `https://shopsmart-streamlit-jvklra.auth.us-east-1.amazoncognito.com`)
+   - **Discovery URL** — the OpenID Connect discovery endpoint for your pool,
+     which you'll need for the Runtime's JWT authorizer in Step 3. It's derived
+     from your region and User Pool ID:
+     ```
+     https://cognito-idp.<region>.amazonaws.com/<USER_POOL_ID>/.well-known/openid-configuration
+     ```
+     e.g. `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXXX/.well-known/openid-configuration`
 
 ### Via CLI (Optional)
 
@@ -232,9 +255,6 @@ This creates three users, each logging in with the email/password below:
 | `bob@example.com` | `ShopSmart1!` | `Bob Smith` | `C002` |
 | `carol@example.com` | `ShopSmart1!` | `Carol White` | `C003` |
 
-> Override the default password with `export USER_PASSWORD='...'` before running,
-> and target a specific profile with `AWS_PROFILE=my-profile`.
-
 <details>
 <summary>What the script does</summary>
 
@@ -285,13 +305,16 @@ incoming Bearer token.
 ### Via AWS Console
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → aria**
-2. Click **Edit**
-3. Scroll to **Inbound authorization** → **Add authorizer**
-4. Configure:
-   - **Authorizer type**: Custom JWT
-   - **Discovery URL**: `https://cognito-idp.us-east-1.amazonaws.com/<USER_POOL_ID>/.well-known/openid-configuration`
+2. Click **Update runtime**
+3. In the **Protocol** selection, choose **HTTP** (Aria is invoked over the
+   standard HTTP runtime endpoint).
+4. For **Inbound auth type**, select **Use JSON Web Tokens (JWT)**
+   (rather than **Use IAM permissions**).
+5. Configure the JWT authorizer fields:
+   - **Discovery URL**: the OpenID Connect discovery URL you noted in Step 1
+     (`https://cognito-idp.us-east-1.amazonaws.com/<USER_POOL_ID>/.well-known/openid-configuration`)
    - **Allowed clients**: enter your **App client ID** from Step 1
-5. Click **Save**
+6. Click **Update runtime**
 
    > **Do NOT set Allowed audiences.** The Streamlit UI invokes the runtime
    > using the Cognito **access token**, which has no `aud` claim (only
@@ -321,9 +344,14 @@ Fill in your values from Step 1, then run:
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export AWS_REGION=us-east-1
-export ECR_REPO=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aria-agent
 export USER_POOL_ID=<your-user-pool-id>      # e.g. us-east-1_XXXXXXXXX
 export CLIENT_ID=<your-app-client-id>
+
+# Point ECR_REPO at your agent image repository, then IMAGE_URI adds the tag.
+# Make sure the image you pushed is tagged to match (this uses :latest).
+export ECR_REPO=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aria-agent
+export IMAGE_URI=$ECR_REPO:latest
+export ROLE_ARN=<your-execution-role-arn>    # e.g. arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole
 
 RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
   --region $AWS_REGION \
@@ -332,8 +360,8 @@ RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
 
 aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id $RUNTIME_ID \
-  --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
-  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
+  --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$IMAGE_URI\"}}" \
+  --role-arn "$ROLE_ARN" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
   --authorizer-configuration "{
     \"customJWTAuthorizer\": {
@@ -345,10 +373,13 @@ aws bedrock-agentcore-control update-agent-runtime \
   --region $AWS_REGION
 ```
 
-> `update-agent-runtime` is a full PUT operation — even though you configured
-> the JWT authorizer via the console, it must be re-supplied here alongside the
-> header allowlist. Both settings are applied together. Note there is **no**
-> `allowedAudience` — only `allowedClients`.
+> `update-agent-runtime` is a full PUT operation — any field you omit is reset,
+> not preserved. So even though you configured the JWT authorizer via the
+> console, you must re-supply the artifact, role, and network configuration here
+> alongside the authorizer and header allowlist. Use the same `IMAGE_URI` and
+> `ROLE_ARN` you deployed with (they may differ from the examples if you chose
+> different ECR repo or role names). Note there is **no** `allowedAudience` —
+> only `allowedClients`.
 
 ---
 
@@ -482,40 +513,7 @@ def extract_identity(context) -> CustomerIdentity:
 
 ---
 
-## Step 6 — Update the Streamlit UI
-
-```bash
-cp modules/module-07-identity/app.py streamlit-ui/app.py
-```
-
-<details>
-<summary>What changed from Module 06</summary>
-
-The manual Customer ID text input is replaced by a **Cognito login flow**:
-
-- Sidebar shows a **Sign in with ShopSmart** button
-- Clicking it redirects to the Cognito Hosted UI login page
-- After login, Cognito redirects back to Streamlit with an authorization code
-- Streamlit exchanges the code for an `id_token` (JWT)
-- Every invocation sends `Authorization: Bearer <id_token>` directly over HTTPS
-
-> **Why HTTPS instead of Boto3?**
-> When a runtime is configured with a JWT authorizer, Boto3's
-> `invoke_agent_runtime` cannot pass a Bearer token — it only supports SigV4
-> signing. Invocations must be made via plain HTTPS to the AgentCore endpoint
-> so the `Authorization` header can be included.
-
-- The sidebar shows the logged-in customer's name and email from the token claims
-- A **Sign out** button clears the token and redirects to Cognito's logout endpoint
-
-The `ARIA_HARNESS_ARN`, `AWS_REGION`, and Cognito parameters are loaded from
-SSM at startup — no hardcoding required.
-
-</details>
-
----
-
-## Step 7 — Rebuild and Deploy
+## Step 6 — Rebuild the Agent and Deploy
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -547,6 +545,39 @@ aws bedrock-agentcore-control update-agent-runtime \
 ```
 
 Wait for the runtime status to return to **Ready**.
+
+---
+
+## Step 7 — Update the Streamlit UI
+
+```bash
+cp modules/module-07-identity/app.py streamlit-ui/app.py
+```
+
+<details>
+<summary>What changed from Module 06</summary>
+
+The manual Customer ID text input is replaced by a **Cognito login flow**:
+
+- Sidebar shows a **Sign in with ShopSmart** button
+- Clicking it redirects to the Cognito Hosted UI login page
+- After login, Cognito redirects back to Streamlit with an authorization code
+- Streamlit exchanges the code for an `id_token` (JWT)
+- Every invocation sends `Authorization: Bearer <id_token>` directly over HTTPS
+
+> **Why HTTPS instead of Boto3?**
+> When a runtime is configured with a JWT authorizer, Boto3's
+> `invoke_agent_runtime` cannot pass a Bearer token — it only supports SigV4
+> signing. Invocations must be made via plain HTTPS to the AgentCore endpoint
+> so the `Authorization` header can be included.
+
+- The sidebar shows the logged-in customer's name and email from the token claims
+- A **Sign out** button clears the token and redirects to Cognito's logout endpoint
+
+The `ARIA_HARNESS_ARN`, `AWS_REGION`, and Cognito parameters are loaded from
+SSM at startup — no hardcoding required.
+
+</details>
 
 ---
 
