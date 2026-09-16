@@ -358,7 +358,7 @@ Check the runtime logs:
 
 1. Go to **AWS Console → CloudWatch → Log groups**
 2. Open `/aws/bedrock-agentcore/runtimes/<your-runtime-id>-DEFAULT`
-3. Read the most recent log stream from the top
+3. Choose **Search all log streams** and read from the top
 
 - Startup log shows `knowledge_base_id=<not set>` → the `/aria/knowledge_base_id`
   parameter is missing or the role can't read SSM (recheck Step 7 and the
@@ -370,6 +370,51 @@ Check the runtime logs:
 
 Config is read once at cold start — after changing a policy or parameter,
 restart the runtime.
+
+</details>
+
+---
+
+## Step 11 — Verify the Answer Really Came from the Knowledge Base
+
+Aria answers policy questions fluently — but how do you *know* the answer came
+from the Knowledge Base and not from the model's general knowledge? The
+definitive proof is the tool-call log: the Module 04 agent logs every time it
+invokes `retrieve_from_knowledge_base`.
+
+After asking a policy question (e.g. `What is your return policy?`), look for
+that tool call in the runtime logs.
+
+### Via AWS Console
+
+1. Go to **AWS Console → CloudWatch → Log groups**
+2. Open `/aws/bedrock-agentcore/runtimes/<your-runtime-id>-DEFAULT`
+3. Choose **Search all log streams** and search for `retrieve_from_knowledge_base`
+
+You should see a line like:
+
+```text
+INFO  aria — 🔧 retrieve_from_knowledge_base(query='return policy')
+```
+
+If that line appears, the KB tool was invoked — the answer is grounded in your
+documents. If it does not appear, Aria answered without the KB.
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+```bash
+export AWS_REGION=us-east-1
+export RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
+  --region "$AWS_REGION" \
+  --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
+  --output text)
+
+aws logs filter-log-events \
+  --region "$AWS_REGION" \
+  --log-group-name "/aws/bedrock-agentcore/runtimes/${RUNTIME_ID}-DEFAULT" \
+  --filter-pattern "retrieve_from_knowledge_base"
+```
 
 </details>
 
@@ -408,6 +453,7 @@ Aria never makes up policy details — she retrieves them from the official docu
 - How retrieval-augmented generation (RAG) works in the context of an agent
 - How to add a retrieval tool to an existing agent
 - The production iteration loop: change the agent, rebuild the image, redeploy a new version
+- How to verify an answer is grounded in the KB using the runtime tool-call logs
 
 </details>
 
@@ -415,6 +461,17 @@ Aria never makes up policy details — she retrieves them from the official docu
 
 ## Next Step
 
-Proceed to [Module 05 — Gateway](../module-05-gateway/README.md) where you replace
-Aria's simulated order and product tools with real backend APIs, exposed through
-AgentCore Gateway.
+Aria is grounded in real documents now — but her orders, products, and returns
+are still make-believe: hardcoded sample data living inside `agent.py`. She can
+only "see" `ORD-1001` and a handful of demo products.
+
+That changes next. In **Module 05** you stand up the actual **ShopSmart
+backend** — a REST API backed by Lambda and DynamoDB — and wire it to Aria
+through **AgentCore Gateway**. The Gateway reads the API's OpenAPI spec and
+exposes each operation as a tool the agent discovers automatically. No more
+hardcoded tool functions, no fake data: Aria starts querying real orders,
+searching the real catalog, and filing real return requests.
+
+This is where Aria stops pretending and starts working.
+
+Proceed to [Module 05 — Gateway](../module-05-gateway/README.md).

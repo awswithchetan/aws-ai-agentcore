@@ -354,11 +354,7 @@ export ECR_REPO=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aria-agent
 aws ecr get-login-password --region $AWS_REGION \
   | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-# Build and push (from the repo root)
-cp modules/module-03-runtime/agent.py aria-agent/agent.py
-cp modules/module-03-runtime/config.py aria-agent/config.py
-cp modules/module-03-runtime/requirements.txt aria-agent/requirements.txt
-cp modules/module-03-runtime/Dockerfile aria-agent/Dockerfile
+# Build and push (aria-agent/ was populated in Step 1)
 cd aria-agent
 docker build --platform linux/arm64 -t aria-agent .
 docker tag aria-agent:latest $ECR_REPO:latest
@@ -424,18 +420,17 @@ steps you'll need to adapt.
 
 #### Via AWS Console
 
-1. Run the Module 03 file copy commands from Step 1 so `aria-agent/` contains the Module 03 files.
-2. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
-3. Configure:
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
+2. Configure:
    - **Agent runtime name**: `aria`
    - **Deployment method**: Code (zip file)
    - **Runtime**: Python 3.11
    - **Entrypoint file**: `agent.py`
-4. Zip the `aria-agent/` folder contents and upload
-5. **Execution role**: select `AriaAgentExecutionRole`
-6. Click **Create agent runtime**
-7. Wait until status shows **Active**
-8. Note down the **Agent Runtime ARN**
+3. Zip the `aria-agent/` folder contents and upload
+4. **Execution role**: select `AriaAgentExecutionRole`
+5. Click **Create agent runtime**
+6. Wait until status shows **Active**
+7. Note down the **Agent Runtime ARN**
 
 #### Via CLI (Optional)
 
@@ -489,7 +484,7 @@ If the Test tab returns an error:
 
 1. Go to **AWS Console → CloudWatch → Log groups**
 2. Open `/aws/bedrock-agentcore/runtimes/<your-runtime-id>-DEFAULT`
-3. Open the most recent log stream and read from the top
+3. Choose **Search all log streams** and read from the top
 
 On startup Aria logs its resolved config, e.g.
 `Starting Aria with config: AgentConfig(region='us-east-1', model_id='us.anthropic.claude-sonnet-4-6')`.
