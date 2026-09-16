@@ -40,25 +40,9 @@ To keep the module self-contained, the tools are **simulated** — they return
 hardcoded data with the *same shape* the real ShopSmart APIs return later. This
 lets you focus on the agent itself, not on backend plumbing.
 
----
-
-## The "simulate now, make it real later" design
-
-Every simulated piece in this module maps to a real AgentCore capability you add
-in a later module — without changing how the agent fundamentally works:
-
-| In this module (simulated / inline)        | Becomes (real capability)        | Module |
-|--------------------------------------------|----------------------------------|:------:|
-| FAQ knowledge inlined in the system prompt | **Knowledge Base**               |   03   |
-| The agent running locally                  | **Runtime** (managed, scalable)  |   04   |
-| `get_order`, `search_products`, `submit_request`, … | **Gateway** (real REST APIs) |   05   |
-| (no memory — forgets between runs)         | **Memory**                       |   06   |
-| "What's your customer ID?"                 | **Identity** (login → JWT)       |   07   |
-| Policy rules written in the system prompt  | **Policy** (enforced guardrails) |   08   |
-| `check_carrier_tracking` returning canned data | **Browser** (drives a real site) |   09   |
-
-Keep this table in mind as you go — each later module is essentially
-"replace one simulated piece with a managed capability."
+Several pieces here are deliberately simulated or inlined; each one becomes a
+real, managed AgentCore capability in a later module. There's a recap mapping
+every piece to its module in the [recap at the end](#recap-simulate-now-make-it-real-later).
 
 ---
 
@@ -197,6 +181,27 @@ There's no build step and no redeploy — save the file and run again.
 - How to run and test an agent locally against Amazon Bedrock
 
 </details>
+
+---
+
+## Recap: simulate now, make it real later
+
+Now that you've seen Aria work, here's the payoff. Every simulated or inlined
+piece in this module maps to a real AgentCore capability you add in a later
+module — without changing how the agent fundamentally works:
+
+| In this module (simulated / inline)        | Becomes (real capability)        | Module |
+|--------------------------------------------|----------------------------------|:------:|
+| FAQ knowledge inlined in the system prompt | **Knowledge Base**               |   03   |
+| The agent running locally                  | **Runtime** (managed, scalable)  |   04   |
+| `get_order`, `search_products`, `submit_request`, … | **Gateway** (real REST APIs) |   05   |
+| (no memory — forgets between runs)         | **Memory**                       |   06   |
+| "What's your customer ID?"                 | **Identity** (login → JWT)       |   07   |
+| Policy rules written in the system prompt  | **Policy** (enforced guardrails) |   08   |
+| `check_carrier_tracking` returning canned data | **Browser** (drives a real site) |   09   |
+
+Each later module is essentially "replace one simulated piece with a managed
+capability."
 
 ---
 
