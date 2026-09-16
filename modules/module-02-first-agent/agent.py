@@ -399,22 +399,12 @@ agent = Agent(
 # Run `python agent.py` and chat with Aria in your terminal. Watch the tool
 # logs above each response to see which tools she calls and why.
 
-def _extract_text(result) -> str:
-    """Pull the assistant's text out of a Strands AgentResult."""
-    message = getattr(result, "message", result)
-    if isinstance(message, dict):
-        for block in message.get("content", []):
-            if isinstance(block, dict) and "text" in block:
-                return block["text"]
-    return str(result)
-
-
-# ANSI color codes for the terminal prompts. Colors are disabled automatically
-# when output is not a TTY (e.g. piped to a file) so we don't emit escape codes
-# into logs.
+# ANSI color codes for the "You" prompt. The colored prompt makes it easy to
+# scroll back and find where each of your questions — and Aria's answer — begins.
+# Colors are disabled automatically when output is not a TTY (e.g. piped to a
+# file) so we don't emit escape codes into logs.
 _COLOR = sys.stdout.isatty()
 _CYAN = "\033[96m" if _COLOR else ""
-_GREEN = "\033[92m" if _COLOR else ""
 _BOLD = "\033[1m" if _COLOR else ""
 _RESET = "\033[0m" if _COLOR else ""
 
@@ -442,8 +432,12 @@ def _run_cli() -> None:
             print("Goodbye!")
             break
 
-        result = agent(user_input)
-        print(f"\n{_BOLD}{_GREEN}Aria ›{_RESET} {_extract_text(result)}\n")
+        # Strands streams Aria's response to the terminal as it is generated,
+        # so we don't print the result again here (that would duplicate it).
+        # A short label before the stream marks where each answer begins.
+        print("\nAria › ", end="", flush=True)
+        agent(user_input)
+        print()
 
 
 if __name__ == "__main__":
