@@ -32,6 +32,7 @@ Optionally override the model (default: us.anthropic.claude-sonnet-4-6):
 
 import logging
 import os
+import sys
 
 from strands import Agent, tool
 from strands.models import BedrockModel
@@ -408,6 +409,16 @@ def _extract_text(result) -> str:
     return str(result)
 
 
+# ANSI color codes for the terminal prompts. Colors are disabled automatically
+# when output is not a TTY (e.g. piped to a file) so we don't emit escape codes
+# into logs.
+_COLOR = sys.stdout.isatty()
+_CYAN = "\033[96m" if _COLOR else ""
+_GREEN = "\033[92m" if _COLOR else ""
+_BOLD = "\033[1m" if _COLOR else ""
+_RESET = "\033[0m" if _COLOR else ""
+
+
 def _run_cli() -> None:
     print("\n🛍️  ShopSmart Support — Aria (local)")
     print("Type your message and press Enter. Type 'exit' or 'quit' to stop.\n")
@@ -420,7 +431,7 @@ def _run_cli() -> None:
 
     while True:
         try:
-            user_input = input("You  › ").strip()
+            user_input = input(f"{_BOLD}{_CYAN}You  › {_RESET}").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye!")
             break
@@ -432,7 +443,7 @@ def _run_cli() -> None:
             break
 
         result = agent(user_input)
-        print(f"\nAria › {_extract_text(result)}\n")
+        print(f"\n{_BOLD}{_GREEN}Aria ›{_RESET} {_extract_text(result)}\n")
 
 
 if __name__ == "__main__":
