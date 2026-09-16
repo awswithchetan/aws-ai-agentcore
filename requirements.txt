@@ -13,3 +13,6 @@ streamlit-oauth==0.1.4
 
 # Utilities
 python-dotenv==1.1.0
+
+# SigV4-signing curl for authenticated API tests (Module 05)
+awscurl==0.44

@@ -1,9 +1,11 @@
 # Module 05 — Gateway: Connecting Real Tools
 
 In this module you will connect Aria to the ShopSmart backend — the ShopSmart
-REST API, backed by Lambda functions and DynamoDB. Aria moves from answering
-only FAQ questions to looking up actual orders, searching the product catalog,
-and submitting support requests on behalf of customers.
+REST API, backed by Lambda functions and DynamoDB. Until now Aria's order,
+product, and return tools have been **simulated** (hardcoded sample data in
+`agent.py`). Here you replace them with real tools backed by live data, so Aria
+looks up actual orders, searches the real product catalog, and submits support
+requests on behalf of customers.
 
 Tools are routed through **AgentCore Gateway** using the ShopSmart REST API as
 an HTTP target. The Gateway parses the OpenAPI spec, exposes each API operation
@@ -38,13 +40,13 @@ authenticates the Runtime-to-Gateway connection.
 <details>
 <summary>How This Differs from Module 04</summary>
 
-| | Module 04 — Runtime | Module 05 — Gateway |
+| | Module 04 — Knowledge Base | Module 05 — Gateway |
 |---|---|---|
-| Knowledge source | Knowledge Base only | Knowledge Base + Live backend |
-| Order lookup | Not possible | Real DynamoDB orders |
-| Product search | Not possible | Real DynamoDB products |
-| Return requests | Not possible | Submitted via REST API |
-| Tool routing | N/A | AgentCore Gateway (MCP) |
+| Knowledge source | Knowledge Base | Knowledge Base + live backend |
+| Order lookup | Simulated (hardcoded sample) | Real DynamoDB orders |
+| Product search | Simulated (hardcoded sample) | Real DynamoDB products |
+| Return requests | Simulated (fake ticket) | Submitted via REST API |
+| Tool routing | Tools defined in agent code | AgentCore Gateway (MCP) |
 | Policy ready | No | Yes — Gateway is the hook |
 
 </details>

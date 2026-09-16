@@ -375,7 +375,7 @@ cp modules/module-06-memory/app.py streamlit-ui/app.py
 ```
 
 <details>
-<summary>What changed from Module 04</summary>
+<summary>What changed from the previous module's UI</summary>
 
 - Sidebar now has a Customer ID text input (e.g. `C001`)
 - Every message sent to the agent includes `customer_id` in the payload

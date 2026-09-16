@@ -70,10 +70,10 @@ Each module adds a new capability to Aria, so by the end of the course you have 
 | Module | Topic | AgentCore Capability |
 |--------|-------|---------------------|
 | 00 | Prerequisites & Setup | — |
-| 01 | AgentCore Platform Overview | All components — video only |
-| 02 | Your First Agent | Harness |
-| 03 | Knowledge Base | Bedrock Knowledge Base |
-| 04 | Deploying Agents | Runtime |
+| 01 | AgentCore Platform Overview | All components — concept & video |
+| 02 | Your First Agent | Strands agent (local) |
+| 03 | Deploying Agents | Runtime |
+| 04 | Knowledge Base | Bedrock Knowledge Base |
 | 05 | Connecting Real Tools | Gateway |
 | 06 | Stateful Agents | Memory |
 | 07 | Authentication | Identity |
@@ -104,9 +104,10 @@ aws-ai-agentcore/
 │   └── app.py
 └── modules/                    # Step-by-step module guides
     ├── module-00-prerequisites/
-    ├── module-02-harness/
-    ├── module-03-knowledge-base/
-    ├── module-04-runtime/
+    ├── module-01-platform-overview/
+    ├── module-02-first-agent/
+    ├── module-03-runtime/
+    ├── module-04-knowledge-base/
     ├── ...
     └── module-10-cleanup/
 ```
@@ -133,7 +134,7 @@ Start with [Module 00 — Prerequisites & Setup](modules/module-00-prerequisites
 
 ## AWS Services Used
 
-- **Amazon Bedrock AgentCore** — Runtime, Harness, Gateway, Memory, Identity, Policy, and Browser
+- **Amazon Bedrock AgentCore** — Runtime, Gateway, Memory, Identity, Policy, and Browser
 - **Amazon Cognito** — Customer authentication
 - **AWS Lambda** — Tool backends
 - **Amazon DynamoDB** — Orders and products data

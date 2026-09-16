@@ -1,16 +1,22 @@
 # Module 10 — Cleanup: Remove Course Resources
 
 This final module removes the AWS resources created throughout the ShopSmart
-course. The commands below are intentionally destructive: they can permanently
-delete data, users, agent resources, and stored container images.
+course. Deletion is intentionally destructive: it can permanently remove data,
+users, agent resources, and stored container images.
 
-**Run these steps only when you are finished with the course.** Review every
-resource name and Region before executing a command. Use the same AWS account
-and Region used in the earlier modules.
+**Do this only when you are finished with the course.** Review every resource
+name and Region before deleting. Use the same AWS account and Region you used in
+the earlier modules.
 
 ## Before you start
 
-Set the course values and confirm the active AWS identity:
+Confirm the active AWS identity and Region in the console:
+
+1. Sign in to the **AWS Console** and confirm the account (top-right) and Region
+   (e.g. `us-east-1`) match what you used throughout the course.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export AWS_REGION=us-east-1
@@ -21,22 +27,33 @@ printf 'Account: %s\nRegion: %s\n' \
   "$AWS_ACCOUNT_ID" "$AWS_REGION"
 ```
 
-> The commands use `shopsmart-backend`, `shopsmart-carrier-browser`, `aria`,
-> `aria-agent`, `shopsmart-gateway`, and the resource names from this course.
-> Replace them if you used different names.
+</details>
+
+> The steps below use the course names — `shopsmart-backend`,
+> `shopsmart-carrier-browser`, `aria`, `aria-agent`, `shopsmart-gateway`, and
+> so on. Substitute your own names if you changed them.
 
 ## Step 1 — Delete the CloudFormation stacks first
 
 There are two course stacks:
 
 - `shopsmart-carrier-browser` — private S3 bucket and CloudFront distribution.
-- `shopsmart-backend` — DynamoDB, Lambda, API Gateway, and related IAM
-  resources.
+- `shopsmart-backend` — DynamoDB, Lambda, API Gateway, and related IAM resources.
 
 ### 1a. Empty the carrier website bucket
 
-CloudFormation cannot delete a non-empty S3 bucket. Retrieve its name from the
-stack, remove the uploaded website files, and then delete the stack:
+CloudFormation cannot delete a non-empty S3 bucket, so empty the carrier website
+bucket first.
+
+1. Go to **AWS Console → CloudFormation → Stacks → `shopsmart-carrier-browser`**.
+2. On the **Outputs** tab, note the `WebsiteBucketName` value.
+3. Go to **S3**, open that bucket, select all objects, and choose **Delete**.
+
+> If the stack is already deleted, skip this subsection. If the bucket holds
+> anything other than course data, do not empty it.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export CARRIER_BUCKET=$(aws cloudformation describe-stacks \
@@ -48,11 +65,21 @@ echo "Carrier bucket: $CARRIER_BUCKET"
 aws s3 rm "s3://$CARRIER_BUCKET" --recursive --region "$AWS_REGION"
 ```
 
-If the stack has already been deleted, skip this subsection. If the bucket is
-used for anything other than this course, do not run the `aws s3 rm` command.
+</details>
 
 ### 1b. Delete both stacks
 
+1. Go to **AWS Console → CloudFormation → Stacks**.
+2. Select `shopsmart-carrier-browser`, choose **Delete**, and confirm.
+3. Select `shopsmart-backend`, choose **Delete**, and confirm.
+4. Wait until both stacks reach **DELETE_COMPLETE** (they disappear from the
+   default list). The carrier stack can take several minutes while CloudFront is
+   removed; the backend stack removes the orders/products tables and ShopSmart
+   API resources.
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
 ```bash
 aws cloudformation delete-stack \
   --stack-name shopsmart-carrier-browser \
@@ -69,13 +96,8 @@ aws cloudformation wait stack-delete-complete \
 aws cloudformation wait stack-delete-complete \
   --stack-name shopsmart-backend \
   --region "$AWS_REGION"
-```
 
-The carrier stack may take several minutes while CloudFront is removed. The
-backend stack removes the orders/products tables and ShopSmart API resources.
-Confirm both stacks are gone before continuing.
-
-```bash
+# Confirm both stacks are gone
 aws cloudformation list-stacks \
   --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE \
   --region "$AWS_REGION" \
@@ -83,15 +105,24 @@ aws cloudformation list-stacks \
   --output table
 ```
 
+</details>
+
 ## Step 2 — Remove S3 buckets created outside CloudFormation
 
-The following buckets were created manually and are not owned by either stack:
+These buckets were created manually and are not owned by either stack:
 
-- Lambda deployment bucket, for example `shopsmart-lambda-$AWS_ACCOUNT_ID`.
-- Knowledge Base document bucket, for example
-  `shopsmart-knowledge-base-$AWS_ACCOUNT_ID`.
+- Lambda deployment bucket, e.g. `shopsmart-lambda-<account-id>`.
+- Knowledge Base document bucket, e.g. `shopsmart-knowledge-base-<account-id>`.
 
-Only run these commands if the buckets contain course data exclusively:
+1. Go to **AWS Console → S3**.
+2. Open each bucket, confirm it contains only course data, select all objects,
+   and **Delete** them.
+3. Then select the (now empty) bucket and choose **Delete** to remove the bucket.
+
+> Only delete buckets that hold course data exclusively.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export LAMBDA_BUCKET="shopsmart-lambda-$AWS_ACCOUNT_ID"
@@ -99,21 +130,26 @@ export KNOWLEDGE_BASE_BUCKET="shopsmart-knowledge-base-$AWS_ACCOUNT_ID"
 
 aws s3 rb "s3://$LAMBDA_BUCKET" --force --region "$AWS_REGION"
 aws s3 rb "s3://$KNOWLEDGE_BASE_BUCKET" --force --region "$AWS_REGION"
+
+# If you used different names, list buckets and remove only the intended ones
+aws s3api list-buckets --query 'Buckets[].Name' --output table
 ```
 
-If you used different bucket names, list buckets and remove only the intended
-ones:
-
-```bash
-aws s3api list-buckets \
-  --query 'Buckets[].Name' \
-  --output table
-```
+</details>
 
 ## Step 3 — Delete the Aria Runtime
 
 The Runtime must be removed before deleting its ECR image repository or its
 execution-role permissions.
+
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime**.
+2. Select the `aria` runtime, confirm it is the course runtime, and choose
+   **Delete**.
+3. If you created multiple `aria` versions or endpoints, remove each course
+   runtime/endpoint.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
@@ -122,37 +158,30 @@ export RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
   --output text)
 
 echo "Runtime ID: $RUNTIME_ID"
-```
 
-If the command returns a Runtime ID, confirm it is the course Runtime, then
-execute:
-
-```bash
 aws bedrock-agentcore-control delete-agent-runtime \
   --agent-runtime-id "$RUNTIME_ID" \
   --region "$AWS_REGION"
 ```
 
-If you created multiple `aria` versions or endpoints, inspect them in the
-AgentCore console and remove each course Runtime/endpoint as appropriate.
+</details>
 
 ## Step 4 — Remove the Gateway and Policy resources
 
 Policy is attached to the Gateway, so remove the Policy configuration and
-policies before deleting the Gateway. Use the console when resource IDs are
-unclear:
+policies before deleting the Gateway.
 
 1. Open **Amazon Bedrock → AgentCore → Policy**.
 2. Open `shopsmart_policy_engine`.
 3. Delete the policies created in Module 08:
-   `allow_read_tools`, `limit_refund_amount`, and
-   `allow_non_refund_requests`.
+   `allow_read_tools`, `limit_refund_amount`, and `allow_non_refund_requests`.
 4. Detach the policy engine from `shopsmart-gateway`.
 5. Delete `shopsmart_policy_engine`.
 6. Open **AgentCore → Gateways**, select `shopsmart-gateway`, and delete it.
 7. Confirm the Gateway service role is no longer used by another application.
 
-Optional discovery commands:
+<details>
+<summary>Via CLI (Optional) — discovery commands</summary>
 
 ```bash
 aws bedrock-agentcore-control list-gateways \
@@ -166,16 +195,20 @@ aws bedrock-agentcore-control list-policy-engines \
   --output table
 ```
 
-The Browser feature does not add a persistent custom Browser resource in this
-course. `browser_session(...)` uses the system Browser Tool and creates a
-short-lived session per lookup; those sessions stop automatically. There is no
-separate Browser resource to delete.
+</details>
 
-## Step 5 — Delete Memory and Harness resources
+> The Browser feature does not add a persistent custom Browser resource in this
+> course. `browser_session(...)` uses the system Browser Tool and creates a
+> short-lived session per lookup; those sessions stop automatically. There is no
+> separate Browser resource to delete.
 
-### Memory
+## Step 5 — Delete Memory resources
 
-Find the Memory created as `aria-memory`, verify its ID, and delete it:
+1. Go to **Amazon Bedrock → AgentCore → Memory**.
+2. Find `aria-memory`, verify its ID, and choose **Delete**.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 aws bedrock-agentcore-control list-memories \
@@ -189,28 +222,24 @@ aws bedrock-agentcore-control delete-memory \
   --region "$AWS_REGION"
 ```
 
-### Harness
-
-Module 02 normally deletes `aria_harness` before Module 03. If it still exists:
-
-```bash
-aws bedrock-agentcore-control list-harnesses \
-  --region "$AWS_REGION" \
-  --query "harnesses[?name=='aria_harness']" \
-  --output table
-
-aws bedrock-agentcore-control delete-harness \
-  --harness-id <your-harness-id> \
-  --region "$AWS_REGION"
-```
-
-If your AWS CLI does not expose these list operations, use the AgentCore
-console to locate and delete the named resource.
+</details>
 
 ## Step 6 — Delete the Knowledge Base
 
-The Knowledge Base was created in Amazon Bedrock as `shopsmart-kb`. First
-verify the ID, then delete it from the Bedrock Knowledge Bases page:
+1. Go to **Amazon Bedrock → Knowledge bases**.
+2. Find `shopsmart-kb`, verify its ID, and choose **Delete**.
+
+After deletion, verify whether the managed vector-store resources created for
+the Knowledge Base have been removed. If you selected a self-managed vector store
+instead, delete its OpenSearch Serverless collection and associated
+security/network policies only after confirming they belong to this course.
+
+Also remove the Knowledge Base service role if it was created only for this
+course. In **IAM → Roles**, identify it from the Knowledge Base details before
+deleting it; do not delete a shared role.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 aws bedrock-agent list-knowledge-bases \
@@ -224,19 +253,21 @@ aws bedrock-agent delete-knowledge-base \
   --region "$AWS_REGION"
 ```
 
-After deletion, verify whether the managed vector-store resources created for
-the Knowledge Base have been removed. If you selected a self-managed vector
-store instead, delete its OpenSearch Serverless collection and associated
-security/network policies only after confirming they belong to this course.
-
-Also remove the Knowledge Base service role if it was created only for this
-course. In **IAM → Roles**, identify it from the Knowledge Base details before
-deleting it; do not delete a shared role.
+</details>
 
 ## Step 7 — Delete the Cognito resources
 
 Cognito deletion permanently removes the ShopSmart test users and User Pool.
-Delete the hosted domain first, then the User Pool client and User Pool.
+Delete the hosted domain first, then the app client, then the User Pool.
+
+1. Go to **Amazon Cognito → User pools** and open your ShopSmart user pool.
+2. Under **App integration → Domain**, delete the hosted domain.
+3. Under **App integration → App clients**, delete the `shopsmart-streamlit`
+   client (and any other course clients).
+4. Return to the user pool overview and choose **Delete user pool**.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 export USER_POOL_ID=<your-shopsmart-user-pool-id>
@@ -264,15 +295,22 @@ aws cognito-idp delete-user-pool \
   --region "$AWS_REGION"
 ```
 
-If you created more than one app client, delete each course client before the
-pool. If the domain was configured with a full URL, use only the domain prefix
-for `delete-user-pool-domain`.
+</details>
+
+> If the domain was configured with a full URL, use only the domain prefix when
+> deleting it.
 
 ## Step 8 — Remove ECR images and repository
 
-The course uses the `aria-agent` ECR repository. Verify it before deleting it:
+1. Go to **AWS Console → Amazon ECR → Repositories**.
+2. Open `aria-agent`, confirm it belongs to this course, and review its images.
+3. Select the repository and choose **Delete** (this removes all images in it).
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
+# Verify first
 aws ecr describe-repositories \
   --repository-names aria-agent \
   --region "$AWS_REGION"
@@ -281,21 +319,29 @@ aws ecr list-images \
   --repository-name aria-agent \
   --region "$AWS_REGION" \
   --output table
-```
 
-Then remove the repository and all images:
-
-```bash
+# Then delete the repository and all images
 aws ecr delete-repository \
   --repository-name aria-agent \
   --force \
   --region "$AWS_REGION"
 ```
 
+</details>
+
 ## Step 9 — Remove SSM parameters
 
-Delete only the `/aria/` parameters created for this course. Review the list
-first because the prefix may be shared by another application:
+Delete only the `/aria/` parameters created for this course. Review them first —
+the prefix may be shared by another application.
+
+1. Go to **AWS Console → Systems Manager → Parameter Store**.
+2. Filter by the `/aria` prefix and review the parameters.
+3. If they belong only to ShopSmart, select them and choose **Delete**.
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+Review the parameters first:
 
 ```bash
 aws ssm get-parameters-by-path \
@@ -307,7 +353,7 @@ aws ssm get-parameters-by-path \
   --output table
 ```
 
-If `/aria` is used only by ShopSmart, remove all parameters:
+If `/aria` is used only by ShopSmart, remove all of them:
 
 ```bash
 PARAMETERS=$(aws ssm get-parameters-by-path \
@@ -343,17 +389,34 @@ aws ssm delete-parameters \
   --region "$AWS_REGION"
 ```
 
+</details>
+
 ## Step 10 — Clean IAM roles and policies
 
-Only delete IAM resources after confirming no other workload uses them.
-Review the IAM console first:
+Only delete IAM resources after confirming no other workload uses them. The
+course roles are:
 
-- `AriaAgentExecutionRole` — used by the Harness and Runtime.
+- `AriaAgentExecutionRole` — used by the Runtime.
 - The Gateway service role created for `shopsmart-gateway`.
 - The Knowledge Base service role created for `shopsmart-kb`.
 - `ShopSmartLambdaRole` — normally removed with the backend stack.
 
-List the execution role policies before removing them:
+1. Go to **AWS Console → IAM → Roles** and open `AriaAgentExecutionRole`.
+2. Review its inline and attached policies to confirm it is course-only.
+3. Delete the inline policies added in Modules 05–09 (e.g. `Gateway_Permissions`,
+   `AriaMemoryAccess`, `AriaRuntimeConfigAccess`, `AriaKnowledgeBaseAccess`).
+4. Detach `AmazonEC2ContainerRegistryReadOnly` and the other managed policies.
+5. Delete the role.
+6. Repeat the review-then-delete for the Gateway and Knowledge Base service
+   roles if they were created only for this course.
+
+> Do not delete a role that is shared or still referenced by any Runtime,
+> Gateway, Knowledge Base, or other application.
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+Review the role's policies first:
 
 ```bash
 aws iam list-role-policies \
@@ -365,9 +428,8 @@ aws iam list-attached-role-policies \
   --output table
 ```
 
-If `AriaAgentExecutionRole` is used only by this course, remove the inline
-policies added in Modules 05–09, detach the ECR managed policy, and then delete
-the role. Policy names may differ if you chose different names:
+If it is course-only, remove the inline policies, detach the managed policies,
+and delete the role (policy names may differ if you chose your own):
 
 ```bash
 aws iam delete-role-policy \
@@ -385,47 +447,49 @@ aws iam detach-role-policy \
 aws iam delete-role --role-name AriaAgentExecutionRole
 ```
 
-Do not run the role deletion if the role is shared or if any Runtime, Gateway,
-Knowledge Base, or other application still references it.
+</details>
 
-## Step 11 — Remove CloudWatch logs and local artifacts
+## Step 11 — Remove CloudWatch logs
 
-Runtime logs are not removed automatically when a Runtime is deleted. Locate
-the course log groups and delete only the matching groups:
+Runtime logs are not removed automatically when a Runtime is deleted.
+
+1. Go to **AWS Console → CloudWatch → Log groups**.
+2. Filter by `/aws/bedrock-agentcore/runtimes/aria-`.
+3. Confirm the log groups belong to this course, then select and **Delete** them.
+
+> Transaction Search and account-level CloudWatch/X-Ray settings may be shared
+> with other applications; leave them enabled unless you intentionally want to
+> change account-wide observability configuration.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
+# List the course log groups
 aws logs describe-log-groups \
   --log-group-name-prefix /aws/bedrock-agentcore/runtimes/aria- \
   --region "$AWS_REGION" \
   --query 'logGroups[].logGroupName' \
   --output table
-```
 
-For each confirmed course log group:
-
-```bash
+# Delete each confirmed course log group
 aws logs delete-log-group \
   --log-group-name <course-runtime-log-group> \
   --region "$AWS_REGION"
 ```
 
-Transaction Search and account-level CloudWatch/X-Ray settings may be shared
-with other applications; leave them enabled unless you intentionally want to
-change account-wide observability configuration.
-
-Optional local cleanup from the repository root:
-
-```bash
-find . -type d -name __pycache__ -prune -exec rm -rf {} +
-rm -f shopsmart-backend/lambdas/*.zip
-rm -f aria-agent.zip
-
-docker image rm aria-agent:latest 2>/dev/null || true
-```
+</details>
 
 ## Final verification
 
-Use these checks to confirm that the main course resources are gone:
+Confirm the main course resources are gone:
+
+1. **CloudFormation** — no `shopsmart-*` stacks remain.
+2. **Bedrock → AgentCore → Runtime / Gateways** — no `aria` / `shopsmart-gateway`.
+3. **ECR → Repositories** — no `aria-agent`.
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 aws cloudformation list-stacks --region "$AWS_REGION" \
@@ -443,8 +507,33 @@ aws ecr describe-repositories \
   --region "$AWS_REGION" 2>&1 || true
 ```
 
-A deleted resource may remain visible briefly while AWS finishes asynchronous
-cleanup. Check the relevant service console again after a few minutes.
+</details>
 
+Congratulations! This completes the ShopSmart AgentCore course.
 
-Congratulations ! This completes the ShopSmart AgentCore course.
+---
+
+## Course Summary
+
+Over the course you built **Aria**, ShopSmart's AI customer support agent, one
+capability at a time — starting from a single local Python file and ending with
+a production-grade agent running on Amazon Bedrock AgentCore. Each module
+externalized a simulated or hardcoded piece into a managed capability:
+
+| AgentCore capability | What it gave Aria | Module |
+|----------------------|-------------------|:------:|
+| **Runtime** | Managed, scalable cloud hosting for the agent | 03 |
+| **Knowledge Base** | Grounded answers retrieved from ShopSmart's real policy documents | 04 |
+| **Gateway** | Real order, product, and return tools from the ShopSmart REST API (via MCP) | 05 |
+| **Memory** | The ability to remember customers and context across sessions | 06 |
+| **Identity** | Authenticated customers via Cognito, with verified identity passed to the agent | 07 |
+| **Policy** | Enforced guardrails on what Aria is allowed to do | 08 |
+| **Browser** | The ability to read live carrier tracking pages that have no API | 09 |
+
+Aria began (Module 02) as a self-contained agent with simulated tools and an
+inline FAQ. By the end she was a deployed, authenticated, governed agent that
+retrieves real knowledge, calls real backend APIs, remembers her customers, and
+even operates a live website — all assembled from composable AgentCore building
+blocks.
+
+Thank you for building along. 🎉

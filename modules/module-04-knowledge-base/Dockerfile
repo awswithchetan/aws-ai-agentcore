@@ -1,5 +1,5 @@
 # Aria — ShopSmart AI Customer Support Agent
-# Module 04: Runtime — Knowledge Base only, no tools directory, no memory
+# Module 04: Knowledge Base — agent.py + config.py, no tools directory, no memory
 # Multi-stage build for a lean production image.
 
 # ── Stage 1: dependency builder ───────────────────────────────────────────────

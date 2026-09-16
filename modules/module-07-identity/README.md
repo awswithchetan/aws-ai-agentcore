@@ -579,7 +579,7 @@ The manual Customer ID text input is replaced by a Cognito login flow:
 - The sidebar shows the logged-in customer's name and email from the token claims
 - A Sign out button clears the token and redirects to Cognito's logout endpoint
 
-The `ARIA_HARNESS_ARN`, `AWS_REGION`, and Cognito parameters are loaded from
+The `ARIA_RUNTIME_ARN`, `AWS_REGION`, and Cognito parameters are loaded from
 SSM at startup — no hardcoding required.
 
 </details>

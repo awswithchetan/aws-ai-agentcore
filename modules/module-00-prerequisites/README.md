@@ -52,7 +52,7 @@ The installer checks or installs:
 - Python 3.11 or newer and `venv`
 - AWS CLI v2
 - Docker Engine or Docker Desktop
-- `curl`, `zip`, `unzip`, and `jq`
+- `curl`, `awscurl`, `zip`, `unzip`, and `jq`
 - Course Python dependencies, including Boto3, Streamlit, and AgentCore SDKs
 
 ## Step 1 — Clone the repository
@@ -208,7 +208,7 @@ python -c "import boto3, bedrock_agentcore, strands; print('Python dependencies 
 ```
 
 If Docker is not needed for your current path, `docker info` may be skipped;
-Module 04 and later container deployment instructions require it.
+Module 03 and later container deployment instructions require it.
 
 ## Setup checklist
 
@@ -219,7 +219,7 @@ Module 04 and later container deployment instructions require it.
 | Region selected consistently | Yes | ☐ |
 | Bedrock Claude access | Yes | ☐ |
 | Python 3.11+ and virtual environment | Yes | ☐ |
-| Docker running | Module 04+ container path | ☐ |
+| Docker running | Module 03+ container path | ☐ |
 | Git | Yes | ☐ |
 | VS Code | Recommended | ☐ |
 
@@ -257,4 +257,4 @@ bash modules/module-00-prerequisites/install-prerequisites.sh
 
 ## Next step
 
-Proceed to [Module 02 — Your First Agent with Harness](../module-02-harness/README.md).
+Proceed to [Module 01 — AgentCore Platform Overview](../module-01-platform-overview/README.md).
