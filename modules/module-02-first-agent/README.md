@@ -236,8 +236,8 @@ module — without changing how the agent fundamentally works:
 
 | In this module (simulated / inline)        | Becomes (real capability)        | Module |
 |--------------------------------------------|----------------------------------|:------:|
-| FAQ knowledge inlined in the system prompt | **Knowledge Base**               |   03   |
-| The agent running locally                  | **Runtime** (managed, scalable)  |   04   |
+| The agent running locally                  | **Runtime** (managed, scalable)  |   03   |
+| FAQ knowledge inlined in the system prompt | **Knowledge Base**               |   04   |
 | `get_order`, `search_products`, `submit_request`, … | **Gateway** (real REST APIs) |   05   |
 | (no memory — forgets between runs)         | **Memory**                       |   06   |
 | "What's your customer ID?"                 | **Identity** (login → JWT)       |   07   |
@@ -251,12 +251,11 @@ capability."
 
 ## Next Step
 
-You now have a working agent, but everything lives inside one file: the
-knowledge is baked into the prompt, the data is faked, and it only runs on your
-laptop. Over the next modules you'll externalize each piece into a managed
-AgentCore capability.
+You now have a working agent, but it only runs on your laptop, its knowledge is
+baked into the prompt, and its data is faked. Over the next modules you'll
+externalize each piece into a managed AgentCore capability.
 
-First up: move the FAQ knowledge out of the system prompt and into a real,
-searchable **Knowledge Base**.
+First up: deploy this exact agent — unchanged — onto AgentCore **Runtime**, so
+it runs as a managed, scalable cloud service.
 
-Proceed to [Module 03 — Knowledge Base](../module-03-knowledge-base/README.md).
+Proceed to [Module 03 — Runtime](../module-03-runtime/README.md).

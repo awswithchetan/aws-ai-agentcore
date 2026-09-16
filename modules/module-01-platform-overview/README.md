@@ -32,16 +32,13 @@ production-grade agent.
 
 | Capability | What it provides | Module |
 |------------|------------------|:------:|
-| **Runtime** | Managed, scalable hosting for your agent, with sessions and observability | 04 |
+| **Runtime** | Managed, scalable hosting for your agent, with sessions and observability | 03 |
+| **Knowledge Base** | Grounds the agent in your own documents through retrieval | 04 |
 | **Gateway** | Turns existing REST APIs into secure tools the agent can call (via MCP) | 05 |
-| **Knowledge Base** | Grounds the agent in your own documents through retrieval | 03 |
 | **Memory** | Lets the agent remember users and context across sessions | 06 |
 | **Identity** | Authenticates users and passes verified identity to the agent | 07 |
 | **Policy** | Enforces guardrails and access rules on what the agent may do | 08 |
 | **Browser** | Lets the agent operate real websites that have no API | 09 |
-
-(Knowledge Base comes before Runtime in the course because we establish Aria's
-grounding data first, then deploy the agent that uses it.)
 
 ---
 
@@ -52,8 +49,8 @@ isolated demos, every module adds a single capability to the same agent, Aria:
 
 ```
 Module 02  Local agent (simulated tools, inline knowledge)
-Module 03  + Knowledge Base        (real, searchable grounding)
-Module 04  + Runtime               (deployed, scalable hosting)
+Module 03  + Runtime               (deployed, scalable hosting)
+Module 04  + Knowledge Base        (real, searchable grounding)
 Module 05  + Gateway               (real tools via APIs)
 Module 06  + Memory                (remembers customers)
 Module 07  + Identity              (authenticated users)

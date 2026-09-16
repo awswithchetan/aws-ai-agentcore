@@ -208,7 +208,7 @@ python -c "import boto3, bedrock_agentcore, strands; print('Python dependencies 
 ```
 
 If Docker is not needed for your current path, `docker info` may be skipped;
-Module 04 and later container deployment instructions require it.
+Module 03 and later container deployment instructions require it.
 
 ## Setup checklist
 
@@ -219,7 +219,7 @@ Module 04 and later container deployment instructions require it.
 | Region selected consistently | Yes | ☐ |
 | Bedrock Claude access | Yes | ☐ |
 | Python 3.11+ and virtual environment | Yes | ☐ |
-| Docker running | Module 04+ container path | ☐ |
+| Docker running | Module 03+ container path | ☐ |
 | Git | Yes | ☐ |
 | VS Code | Recommended | ☐ |
 

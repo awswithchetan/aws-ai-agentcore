@@ -1,8 +1,22 @@
-# Module 04 — Runtime
+# Module 03 — Runtime
 
-In this module you take Aria — the Strands agent you built and ran locally in Module 02 — and turn her into a **production-grade deployment**: rebuilt to retrieve from the Module 03 Knowledge Base and deployed on AgentCore Runtime for managed, scalable, observable hosting.
+In Module 02 you built Aria as a self-contained Strands agent and ran her in your
+terminal. In this module you deploy that **same agent** onto Amazon Bedrock
+AgentCore Runtime — managed, scalable, observable hosting — with the smallest
+possible change to the code.
 
-This is the agent that evolves through the rest of the course. Every subsequent module adds a new capability to this same agent.
+The point of this module is to learn Runtime *in isolation*. Aria's tools are
+still simulated and her FAQ knowledge is still inline in the system prompt; we
+change nothing about her behavior. The only meaningful difference from Module 02
+is the entrypoint: a local CLI loop becomes a `BedrockAgentCoreApp` entrypoint
+that Runtime calls on every request.
+
+Once she's deployed, you'll test her two ways — the built-in Runtime **Test**
+console, then the ShopSmart Streamlit chat UI.
+
+This is the agent that evolves through the rest of the course. Every subsequent
+module rebuilds and redeploys this same agent with one new capability — starting
+with a real Knowledge Base in Module 04.
 
 ---
 
@@ -10,24 +24,28 @@ This is the agent that evolves through the rest of the course. Every subsequent 
 
 ```
 aria-agent/
-├── agent.py          # Aria agent code (Strands + BedrockAgentCoreApp)
-├── config.py         # Runtime and Knowledge Base configuration
-├── requirements.txt  # Module 04 Python dependencies
+├── agent.py          # The Module 02 agent + a BedrockAgentCoreApp entrypoint
+├── config.py         # Loads model + region from SSM (no KB yet)
+├── requirements.txt  # Strands + the AgentCore Runtime SDK
 ├── Dockerfile        # Container image (recommended — framework-agnostic)
 └── .dockerignore     # Keeps the build context clean
 ```
 
 <details>
-<summary>How This Differs from Module 02</summary>
+<summary>How this differs from Module 02</summary>
 
-| | Module 02 — Local agent | Module 04 — Runtime |
+| | Module 02 — Local agent | Module 03 — Runtime |
 |---|---|---|
 | Where it runs | Your laptop | AgentCore Runtime (managed cloud) |
-| FAQ knowledge | Inlined in system prompt | Retrieved from Knowledge Base |
-| Tools | Simulated (hardcoded data) | Still local here; real APIs arrive in Module 05 |
 | Entry point | CLI chat loop | `BedrockAgentCoreApp` entrypoint |
+| Config | Env vars in your shell | SSM Parameter Store |
 | Scaling & sessions | None | Managed by Runtime |
-| Production ready | No | Yes |
+| Tools | Simulated (hardcoded data) | **Still simulated** — unchanged |
+| FAQ knowledge | Inline in system prompt | **Still inline** — unchanged |
+
+Everything about Aria's *behavior* is identical to Module 02. We're only
+changing how she is hosted and invoked. The simulated pieces become real in
+later modules (Knowledge Base in 04, real tools via Gateway in 05, and so on).
 
 Two deployment options are covered: **Docker (recommended)** and zip.
 Docker is preferred because it works identically regardless of which agent
@@ -38,25 +56,31 @@ CrewAI, or any other framework without touching the deployment pipeline.
 
 ---
 
-## Step 1 — Copy the Module 04 Agent Files into the Deployment Workspace
+## Step 1 — Copy the Module 03 Agent Files into the Deployment Workspace
 
-The repository keeps `aria-agent/` as the active deployment directory. Because it is a generated workspace that accumulates capability directories from later modules, first copy the complete Module 04 snapshot into `aria-agent/`. This ensures the image contains only the Runtime and Knowledge Base capabilities introduced here.
+The repository keeps `aria-agent/` as the active deployment directory. It is a
+generated workspace that accumulates capability files from later modules, so
+first copy the complete Module 03 snapshot into it.
 
 Run from the repository root:
 
 ```bash
-cp modules/module-04-runtime/agent.py aria-agent/agent.py
-cp modules/module-04-runtime/config.py aria-agent/config.py
-cp modules/module-04-runtime/requirements.txt aria-agent/requirements.txt
-cp modules/module-04-runtime/Dockerfile aria-agent/Dockerfile
+cp modules/module-03-runtime/agent.py aria-agent/agent.py
+cp modules/module-03-runtime/config.py aria-agent/config.py
+cp modules/module-03-runtime/requirements.txt aria-agent/requirements.txt
+cp modules/module-03-runtime/Dockerfile aria-agent/Dockerfile
 ```
 
 Review the copied files in `aria-agent/` before deploying:
 
-- [`agent.py`](agent.py) — Aria agent code
-- [`config.py`](config.py) — Runtime and Knowledge Base configuration
-- [`requirements.txt`](requirements.txt) — Module 04 dependencies
-- [`Dockerfile`](Dockerfile) — Module 04 container definition
+- [`agent.py`](agent.py) — the Module 02 agent with a `BedrockAgentCoreApp` entrypoint
+- [`config.py`](config.py) — loads model + region from SSM
+- [`requirements.txt`](requirements.txt) — Module 03 dependencies
+- [`Dockerfile`](Dockerfile) — Module 03 container definition
+
+> Open `agent.py` and compare it to your Module 02 file. The tools, data, and
+> system prompt are identical — the new parts are the `app = BedrockAgentCoreApp()`
+> line and the `@app.entrypoint` function near the bottom.
 
 ---
 
@@ -166,13 +190,11 @@ required.
 
 ---
 
-## Step 1d — Add SSM and Knowledge Base Permissions to the Agent Execution IAM Role
+## Step 1d — Add SSM Read Permissions to the Agent Execution IAM Role
 
-At runtime, Aria reads its configuration from SSM Parameter Store and retrieves
-answers from the Bedrock Knowledge Base. The execution role needs an inline
-policy granting both. Without it, the agent starts but every Knowledge Base
-lookup fails with an `AccessDeniedException`, and Aria replies that the knowledge
-base is unavailable.
+At runtime, Aria reads its configuration (model ID, region) from SSM Parameter
+Store. The execution role needs permission to read the `/aria/` parameters.
+Without it, the agent falls back to built-in defaults.
 
 ### Via AWS Console
 
@@ -182,8 +204,7 @@ base is unavailable.
 4. Replace the placeholders:
    - `<AWS_REGION>` — your region (e.g. `us-east-1`)
    - `<AWS_ACCOUNT_ID>` — your 12-digit account ID
-   - `<KNOWLEDGE_BASE_ID>` — your KB ID from Module 03
-5. Click **Next**, name it `AriaRuntimeConfigAndKbAccess`, and click **Create policy**
+5. Click **Next**, name it `AriaRuntimeConfigAccess`, and click **Create policy**
 
 ```json
 {
@@ -201,12 +222,6 @@ base is unavailable.
         "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:parameter/aria",
         "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:parameter/aria/*"
       ]
-    },
-    {
-      "Sid": "BedrockKnowledgeBaseRetrieve",
-      "Effect": "Allow",
-      "Action": "bedrock:Retrieve",
-      "Resource": "arn:aws:bedrock:<AWS_REGION>:<AWS_ACCOUNT_ID>:knowledge-base/<KNOWLEDGE_BASE_ID>"
     }
   ]
 }
@@ -218,11 +233,10 @@ base is unavailable.
 ```bash
 export AWS_REGION=us-east-1
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export KNOWLEDGE_BASE_ID="<your-kb-id-from-module-03>"
 
 aws iam put-role-policy \
   --role-name AriaAgentExecutionRole \
-  --policy-name AriaRuntimeConfigAndKbAccess \
+  --policy-name AriaRuntimeConfigAccess \
   --policy-document "{
     \"Version\": \"2012-10-17\",
     \"Statement\": [
@@ -238,12 +252,6 @@ aws iam put-role-policy \
           \"arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/aria\",
           \"arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/aria/*\"
         ]
-      },
-      {
-        \"Sid\": \"BedrockKnowledgeBaseRetrieve\",
-        \"Effect\": \"Allow\",
-        \"Action\": \"bedrock:Retrieve\",
-        \"Resource\": \"arn:aws:bedrock:${AWS_REGION}:${AWS_ACCOUNT_ID}:knowledge-base/${KNOWLEDGE_BASE_ID}\"
       }
     ]
   }"
@@ -254,18 +262,16 @@ aws iam put-role-policy \
 <details>
 <summary>Why this permission is needed</summary>
 
-- `ssm:GetParametersByPath`, `ssm:GetParameters`, and `ssm:GetParameter` let the
-  agent load its configuration (model ID, KB ID, tuning values) from Parameter
-  Store at startup. Module 04 only calls `GetParametersByPath`, but the other two
-  are included so later modules that fetch individual parameters work without a
-  policy change. Two resource ARNs are required: `parameter/aria` matches the path
-  itself (what `GetParametersByPath` authorizes against), and `parameter/aria/*`
-  matches the individual parameters under it. Omitting the first ARN causes an
-  `AccessDeniedException` on startup, the config silently falls back to defaults
-  (empty KB ID), and Aria reports the knowledge base as unavailable.
-- `bedrock:Retrieve` on the specific Knowledge Base ARN lets the
-  `retrieve_from_knowledge_base` tool query the KB. Scoping the resource to your
-  KB ARN keeps the role least-privilege instead of granting broad Bedrock access.
+`ssm:GetParametersByPath`, `ssm:GetParameters`, and `ssm:GetParameter` let the
+agent load its configuration from Parameter Store at startup. Module 03 only
+calls `GetParametersByPath`, but the other two are included so later modules that
+fetch individual parameters work without a policy change. Two resource ARNs are
+required: `parameter/aria` matches the path itself (what `GetParametersByPath`
+authorizes against), and `parameter/aria/*` matches the individual parameters
+under it.
+
+Module 04 extends this same role with `bedrock:Retrieve` when the Knowledge Base
+is introduced.
 
 </details>
 
@@ -273,18 +279,16 @@ aws iam put-role-policy \
 
 ## Step 2 — Add Configuration to SSM Parameter Store
 
-Aria loads all dynamic configuration from SSM Parameter Store at container startup.
-This separates configuration from code — you can change the model or Knowledge Base
-ID without rebuilding or redeploying the container.
+Aria loads dynamic configuration from SSM Parameter Store at container startup.
+This separates configuration from code — you can change the model without
+rebuilding or redeploying the container.
 
 Parameters are stored under the `/aria/` prefix:
 
-| SSM Parameter             | Purpose                             | Value to set                     |
-|---------------------------|-------------------------------------|----------------------------------|
-| `/aria/region`            | AWS region                          | e.g. `us-east-1`                 |
-| `/aria/model_id`          | Bedrock model to use                | `us.anthropic.claude-sonnet-4-6` |
-| `/aria/knowledge_base_id` | Bedrock Knowledge Base ID           | your KB ID from Module 03        |
-| `/aria/kb_num_results`    | Number of KB chunks retrieved/query | `5`                              |
+| SSM Parameter    | Purpose              | Value to set                     |
+|------------------|----------------------|----------------------------------|
+| `/aria/region`   | AWS region           | e.g. `us-east-1`                 |
+| `/aria/model_id` | Bedrock model to use | `us.anthropic.claude-sonnet-4-6` |
 
 ### Via AWS Console
 
@@ -294,16 +298,19 @@ Parameters are stored under the `/aria/` prefix:
    - **Tier**: Standard
    - **Type**: String
    - **Value**: as shown in the table
-3. Click **Create parameter** and repeat for all four
+3. Click **Create parameter** and repeat for both
 
 <details>
 <summary>Via CLI (Optional)</summary>
 
 ```bash
-export KNOWLEDGE_BASE_ID="<your-kb-id-from-module-03>"
 export AWS_REGION=us-east-1
 
-bash aria-agent/scripts/put_ssm_params.sh
+aws ssm put-parameter --name /aria/region --type String \
+  --value "$AWS_REGION" --overwrite --region "$AWS_REGION"
+
+aws ssm put-parameter --name /aria/model_id --type String \
+  --value "us.anthropic.claude-sonnet-4-6" --overwrite --region "$AWS_REGION"
 ```
 
 </details>
@@ -311,11 +318,9 @@ bash aria-agent/scripts/put_ssm_params.sh
 <details>
 <summary>How to retrieve or validate the model ID</summary>
 
-The default model ID is `us.anthropic.claude-sonnet-4-6`. If you want to use a
-different model, or confirm the ID is valid in your region, list the available
-Claude models before writing the `/aria/model_id` parameter.
-
-List Claude inference profiles (these carry the `us.` cross-region prefix):
+The default model ID is `us.anthropic.claude-sonnet-4-6` — a cross-region
+inference profile (note the `us.` prefix). To use a different model, or confirm
+the ID is valid in your region, list the available Claude inference profiles:
 
 ```bash
 aws bedrock list-inference-profiles \
@@ -324,38 +329,17 @@ aws bedrock list-inference-profiles \
   --output table
 ```
 
-Or list the underlying foundation models directly:
-
-```bash
-aws bedrock list-foundation-models \
-  --region us-east-1 \
-  --query "modelSummaries[?contains(modelId, 'claude')].modelId" \
-  --output table
-```
-
-Copy the ID you want and set it before running the script:
-
-```bash
-export MODEL_ID="us.anthropic.claude-sonnet-4-6"
-bash aria-agent/scripts/put_ssm_params.sh
-```
-
 </details>
 
 <details>
 <summary>Why SSM instead of environment variables?</summary>
 
-- Model upgrades and KB replacements are configuration changes, not code changes
-- Changing an env var requires a container redeploy; changing an SSM parameter does not
-- SSM gives you an audit trail (who changed what, when) out of the box
-- SSM SecureString can be used for sensitive values without Secrets Manager overhead
+- Model upgrades are configuration changes, not code changes.
+- Changing an env var requires a container redeploy; changing an SSM parameter does not.
+- SSM gives you an audit trail (who changed what, when) out of the box.
 
-To update a parameter later (e.g. model upgrade):
-1. Go to Parameter Store, find `/aria/model_id`
-2. Click **Edit**, update the value, save
-3. Restart the AgentCore Runtime — config is read once at cold start
-
-No code change. No image rebuild. No redeployment.
+To update a parameter later: edit it in Parameter Store, then restart the
+Runtime — config is read once at cold start. No code change, no image rebuild.
 
 </details>
 
@@ -366,9 +350,8 @@ Set `SSM_ENABLED=false` to skip SSM entirely and use env vars instead:
 
 ```bash
 export SSM_ENABLED=false
-export KNOWLEDGE_BASE_ID=kb-XXXXXXXXXX
 export AWS_REGION=us-east-1
-# MODEL_ID and KB_NUM_RESULTS have built-in defaults
+# MODEL_ID has a built-in default
 ```
 
 </details>
@@ -377,10 +360,8 @@ export AWS_REGION=us-east-1
 
 ## Step 3 — Deploy to AgentCore Runtime
 
-This course uses **Docker** as the deployment method throughout. All subsequent
-modules assume a container-based Runtime, so follow the Docker steps below to
-stay aligned with the rest of the course. A Zip-based alternative is included in
-the collapsible section at the end of this step if you prefer not to use Docker.
+This course uses **Docker** as the deployment method throughout. A Zip-based
+alternative is included in the collapsible section at the end of this step.
 
 #### 3a. Create an ECR repository
 
@@ -403,11 +384,11 @@ export ECR_REPO=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aria-agent
 aws ecr get-login-password --region $AWS_REGION \
   | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-# Build and push
-cp modules/module-04-runtime/agent.py aria-agent/agent.py
-cp modules/module-04-runtime/config.py aria-agent/config.py
-cp modules/module-04-runtime/requirements.txt aria-agent/requirements.txt
-cp modules/module-04-runtime/Dockerfile aria-agent/Dockerfile
+# Build and push (from the repo root)
+cp modules/module-03-runtime/agent.py aria-agent/agent.py
+cp modules/module-03-runtime/config.py aria-agent/config.py
+cp modules/module-03-runtime/requirements.txt aria-agent/requirements.txt
+cp modules/module-03-runtime/Dockerfile aria-agent/Dockerfile
 cd aria-agent
 docker build --platform linux/arm64 -t aria-agent .
 docker tag aria-agent:latest $ECR_REPO:latest
@@ -432,12 +413,12 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
 2. Configure:
    - **Agent runtime name**: `aria`
-   - **Compute**: leave the default **MicroVM** (the other option, **Instances (new)**, is not needed for this course)
-   - **Additional details** (expand this section): set **Description** to `ShopSmart AI customer support agent`
+   - **Compute**: leave the default **MicroVM**
+   - **Additional details** (expand): set **Description** to `ShopSmart AI customer support agent`
    - **Agent source**: choose **ECR Container** (not S3 source)
    - **Image URI**: `<your-ecr-repo-uri>:latest`
    - **Permissions**: select **Use another role** and choose `AriaAgentExecutionRole`
-   - **Environment variables** (under **Advanced configurations**): add a new variable `AWS_REGION` (e.g. `us-east-1`)
+   - **Environment variables** (under **Advanced configurations**): add `AWS_REGION` (e.g. `us-east-1`)
 3. Click **Create agent runtime**
 4. Wait until status shows **Active**
 5. Note down the **Agent Runtime ARN**
@@ -464,8 +445,6 @@ aws bedrock-agentcore control create-agent-runtime \
 
 </details>
 
----
-
 <details>
 <summary>Alternative — Deploy with Zip (no Docker required)</summary>
 
@@ -475,7 +454,7 @@ steps you'll need to adapt.
 
 #### Via AWS Console
 
-1. Run the Module 04 file copy commands from Step 1 so `aria-agent/` contains the Module 04 files.
+1. Run the Module 03 file copy commands from Step 1 so `aria-agent/` contains the Module 03 files.
 2. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
 3. Configure:
    - **Agent runtime name**: `aria`
@@ -489,8 +468,6 @@ steps you'll need to adapt.
 8. Note down the **Agent Runtime ARN**
 
 #### Via CLI (Optional)
-
-Before creating the zip, run the Module 04 file copy commands from Step 1 so `aria-agent/` contains the Module 04 files.
 
 ```bash
 cd aria-agent
@@ -517,75 +494,71 @@ aws bedrock-agentcore control create-agent-runtime \
 
 ---
 
-## Step 4 — Test via AWS Console
+## Step 4 — Test with the Runtime console
+
+The quickest way to confirm the deployment works is the built-in Test tab:
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime**
 2. Select `aria` and click the **Test** tab
 3. Try these prompts:
    - `What is your return policy?`
-   - `How much does express shipping cost?`
-   - `What payment methods do you accept?`
+   - `What's the status of order ORD-1002?`
+   - `Where is my package for order ORD-1001?`
 
-Aria should now retrieve answers from the Knowledge Base documents rather than a hardcoded system prompt.
+Aria answers exactly as she did locally in Module 02 — the FAQ comes from her
+system prompt, and the order/tracking answers come from the simulated tools.
+
+> The tools are still simulated, so Aria only "knows" the sample orders
+> (`ORD-1001`, `ORD-1002`) and products baked into `agent.py`. We connect real
+> data through Gateway in Module 05.
 
 <details>
-<summary>Troubleshooting — check CloudWatch logs if Aria can't answer</summary>
+<summary>Troubleshooting — check CloudWatch logs</summary>
 
-If Aria replies that the knowledge base is unavailable, or returns a generic
-answer instead of KB content, the runtime logs will show why.
-
-**View the logs:**
+If the Test tab returns an error:
 
 1. Go to **AWS Console → CloudWatch → Log groups**
 2. Open `/aws/bedrock-agentcore/runtimes/<your-runtime-id>-DEFAULT`
 3. Open the most recent log stream and read from the top
 
-**What to look for:**
-
-- On startup Aria logs its resolved config, e.g.
-  `Starting Aria with config: AgentConfig(... knowledge_base_id=<set> ...)`.
-  If it shows `knowledge_base_id=<not set>`, the agent never loaded its config.
-- `SSM unavailable (AccessDeniedException); using fallbacks` — the execution role
-  is missing SSM read permissions. Recheck the inline policy from **Step 1c**,
-  especially that it lists **both** `parameter/aria` and `parameter/aria/*` as
-  resources.
-- `Knowledge base retrieval failed: ... AccessDeniedException` — the role can read
-  SSM but is missing `bedrock:Retrieve` on the KB ARN (also **Step 1c**).
-- `Knowledge base retrieval failed: ... ResourceNotFoundException` — the
-  `/aria/knowledge_base_id` parameter points to a KB ID that doesn't exist in this
-  region. Verify the value in Parameter Store.
-
-Configuration is read once at container cold start. After changing an IAM policy
-or SSM parameter, restart the runtime (update it, or wait for the next cold start)
-so the new values take effect.
+On startup Aria logs its resolved config, e.g.
+`Starting Aria with config: AgentConfig(region='us-east-1', model_id='us.anthropic.claude-sonnet-4-6')`.
+Configuration is read once at container cold start; after changing an IAM policy
+or SSM parameter, restart the runtime so the new values take effect.
 
 </details>
 
 ---
 
-## Step 5 — Update Streamlit UI
+## Step 5 — Test with the Streamlit chat UI
+
+Now interact with the deployed agent through the ShopSmart chat UI — the same
+interface a customer would use.
 
 ```bash
-cp modules/module-04-runtime/app.py streamlit-ui/app.py
+cp modules/module-03-runtime/app.py streamlit-ui/app.py
 
 export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:<YOUR_ACCOUNT_ID>:runtime/aria-XXXXXXXX"
 export AWS_REGION="us-east-1"
 streamlit run streamlit-ui/app.py
 ```
 
+Open your browser at `http://localhost:8501` and chat with Aria. The UI invokes
+your Runtime endpoint via `invoke_agent_runtime` — the agent is now genuinely
+running in the cloud, not on your laptop.
+
 ---
 
 <details>
 <summary>What You Learned</summary>
 
-- How AgentCore Runtime works — isolated execution environment for your agent code
-- How to structure a Strands agent with `BedrockAgentCoreApp`
+- How AgentCore Runtime works — managed, isolated hosting for your agent code
+- How the same local agent becomes a deployable one by adding a `BedrockAgentCoreApp` entrypoint
 - How the `@app.entrypoint` decorator wires your function into the Runtime
 - How to use SSM Parameter Store to externalize configuration from code
-- Why separating config from code matters for production rollouts
 - How to package an agent as a Docker image and push it to ECR
 - Why Docker is the framework-agnostic choice for production deployments
-- How to connect the Knowledge Base as a retrieval tool
+- Two ways to test a deployed agent: the Runtime console and a Streamlit UI
 
 </details>
 
@@ -593,4 +566,8 @@ streamlit run streamlit-ui/app.py
 
 ## Next Step
 
-Proceed to [Module 05 — Gateway](../module-05-gateway/README.md) where you will connect Aria to real backend tools — Lambda functions for order lookup, product search, and return requests.
+Aria is deployed, but her knowledge is still hardcoded in the system prompt.
+Next you'll move that knowledge into a real, searchable **Knowledge Base**, then
+rebuild and redeploy Aria to retrieve from it.
+
+Proceed to [Module 04 — Knowledge Base](../module-04-knowledge-base/README.md).

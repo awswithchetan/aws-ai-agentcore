@@ -2,7 +2,7 @@
 ShopSmart — Aria Customer Support Chat UI
 
 A Streamlit-based chat interface for interacting with the Aria agent deployed
-on AgentCore Runtime (Module 04+).
+on AgentCore Runtime (Module 03+).
 
 Usage:
     export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:<account>:runtime/aria-XXXXXXXX"

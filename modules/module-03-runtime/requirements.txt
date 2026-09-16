@@ -1,0 +1,7 @@
+# Module 03 agent dependencies
+# The Module 02 agent plus the AgentCore Runtime SDK (for the entrypoint).
+# Tools are still simulated — no extra libraries needed yet.
+
+boto3>=1.38.0
+bedrock-agentcore>=1.22.0
+strands-agents>=1.54.0

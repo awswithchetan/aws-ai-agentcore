@@ -12,7 +12,8 @@ This architecture means:
     with no agent code changes needed
   - New API endpoints become available as tools automatically
 
-New capabilities vs Module 04:
+These tools were simulated (hardcoded data) in Modules 03–04; here they become
+real, backed by the ShopSmart REST API via the Gateway:
   - list_orders      — list all orders for a customer
   - get_order        — get full details of a specific order
   - get_product      — get details of a specific product

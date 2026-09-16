@@ -15,12 +15,13 @@ the system prompt.
 Later modules replace each simulated piece with a real, managed AgentCore
 capability — without changing how the agent fundamentally works:
 
-  - inline FAQ knowledge        → Knowledge Base   (Module 03)
-  - simulated order/product/... → Gateway (real APIs) (Module 05)
-  - simulated carrier tracking  → Browser           (Module 09)
-  - policy rules in the prompt  → Policy             (Module 08)
-  - conversation memory         → Memory             (Module 06)
-  - "who is the customer?"      → Identity           (Module 07)
+  - the agent running locally    → Runtime          (Module 03)
+  - inline FAQ knowledge         → Knowledge Base    (Module 04)
+  - simulated order/product/...  → Gateway (real APIs) (Module 05)
+  - conversation memory          → Memory            (Module 06)
+  - "who is the customer?"       → Identity          (Module 07)
+  - policy rules in the prompt   → Policy            (Module 08)
+  - simulated carrier tracking   → Browser           (Module 09)
 
 Run it locally:
     export AWS_REGION=us-east-1
@@ -343,7 +344,7 @@ def check_carrier_tracking(tracking_number: str) -> dict:
 # ── System Prompt ──────────────────────────────────────────────────────────────
 # The system prompt defines Aria's persona, the rules she must follow, and the
 # ShopSmart knowledge she can rely on. In later modules the FAQ moves to a
-# Knowledge Base (Module 03) and the rules become enforced Policy (Module 08).
+# Knowledge Base (Module 04) and the rules become enforced Policy (Module 08).
 
 SYSTEM_PROMPT = """You are Aria, the AI customer support agent for ShopSmart — a friendly online retail store.
 
