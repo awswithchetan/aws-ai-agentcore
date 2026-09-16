@@ -84,206 +84,17 @@ Review the copied files in `aria-agent/` before deploying:
 
 ---
 
-## Step 1b — Create the Agent Execution IAM Role
+## Step 2 — Externalize Configuration to SSM Parameter Store
 
-AgentCore Runtime needs an IAM role to invoke Bedrock models, pull the container
-image, read configuration, and write logs. Create it once here — every later
-module reuses this same role.
+This is where we begin *productionalizing* the Module 02 agent. In Module 02 the
+model ID lived in the code (an `ARIA_MODEL_ID` env var with a default). For a
+deployed service, values that change over time — the model, the region, and
+later the Knowledge Base ID — belong in configuration, not baked into the
+container image. We externalize them into **SSM Parameter Store** so you can
+change them without rebuilding or redeploying.
 
-### Via AWS Console
-
-1. Go to **AWS Console → IAM → Roles → Create role**
-2. **Trusted entity type**: AWS service
-3. **Use case**: scroll down and select **Amazon Bedrock AgentCore** — this automatically configures the correct trust policy
-4. Click **Next**
-5. Attach these managed policies:
-   - `AmazonBedrockFullAccess`
-   - `BedrockAgentCoreFullAccess`
-   - `CloudWatchLogsFullAccess`
-6. Click **Next**
-7. **Role name**: `AriaAgentExecutionRole`
-8. Click **Create role**
-9. Note down the **Role ARN**
-
-<details>
-<summary>Via CLI (Optional)</summary>
-
-```bash
-# Create trust policy
-cat > trust-policy.json << 'EOF'
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": {
-      "Service": "bedrock-agentcore.amazonaws.com"
-    },
-    "Action": "sts:AssumeRole"
-  }]
-}
-EOF
-
-# Create role
-aws iam create-role \
-  --role-name AriaAgentExecutionRole \
-  --assume-role-policy-document file://trust-policy.json
-
-# Attach policies
-aws iam attach-role-policy \
-  --role-name AriaAgentExecutionRole \
-  --policy-arn arn:aws:iam::aws:policy/AmazonBedrockFullAccess
-
-aws iam attach-role-policy \
-  --role-name AriaAgentExecutionRole \
-  --policy-arn arn:aws:iam::aws:policy/BedrockAgentCoreFullAccess
-
-aws iam attach-role-policy \
-  --role-name AriaAgentExecutionRole \
-  --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-
-# Get Role ARN
-aws iam get-role \
-  --role-name AriaAgentExecutionRole \
-  --query "Role.Arn" \
-  --output text
-
-# Clean up
-rm trust-policy.json
-```
-
-</details>
-
----
-
-## Step 1c — Add ECR Permissions to the Agent Execution IAM Role
-
-### Via AWS Console
-
-1. Go to **AWS Console → IAM → Roles → `AriaAgentExecutionRole`**
-2. Click **Add permissions → Attach policies**
-3. Search for `AmazonEC2ContainerRegistryReadOnly`
-4. Select it and click **Add permissions**
-
-<details>
-<summary>Via CLI (Optional)</summary>
-
-```bash
-aws iam attach-role-policy \
-  --role-name AriaAgentExecutionRole \
-  --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-```
-
-</details>
-
-<details>
-<summary>Why this permission is needed</summary>
-
-`AmazonEC2ContainerRegistryReadOnly` grants exactly three permissions:
-`ecr:GetAuthorizationToken`, `ecr:BatchGetImage`, and `ecr:GetDownloadUrlForLayer`.
-These are the minimum required for AgentCore to pull a container image — nothing more.
-
-Module 02 ran Aria locally, so it needed no execution role at all. Now that we
-deploy a container image on Runtime, the role and this ECR permission are
-required.
-
-</details>
-
----
-
-## Step 1d — Add SSM Read Permissions to the Agent Execution IAM Role
-
-At runtime, Aria reads its configuration (model ID, region) from SSM Parameter
-Store. The execution role needs permission to read the `/aria/` parameters.
-Without it, the agent falls back to built-in defaults.
-
-### Via AWS Console
-
-1. Go to **AWS Console → IAM → Roles → `AriaAgentExecutionRole`**
-2. Click **Add permissions → Create inline policy**
-3. Select the **JSON** tab and paste the policy below
-4. Replace the placeholders:
-   - `<AWS_REGION>` — your region (e.g. `us-east-1`)
-   - `<AWS_ACCOUNT_ID>` — your 12-digit account ID
-5. Click **Next**, name it `AriaRuntimeConfigAccess`, and click **Create policy**
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "SSMReadAriaConfig",
-      "Effect": "Allow",
-      "Action": [
-        "ssm:GetParametersByPath",
-        "ssm:GetParameters",
-        "ssm:GetParameter"
-      ],
-      "Resource": [
-        "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:parameter/aria",
-        "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:parameter/aria/*"
-      ]
-    }
-  ]
-}
-```
-
-<details>
-<summary>Via CLI (Optional)</summary>
-
-```bash
-export AWS_REGION=us-east-1
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-aws iam put-role-policy \
-  --role-name AriaAgentExecutionRole \
-  --policy-name AriaRuntimeConfigAccess \
-  --policy-document "{
-    \"Version\": \"2012-10-17\",
-    \"Statement\": [
-      {
-        \"Sid\": \"SSMReadAriaConfig\",
-        \"Effect\": \"Allow\",
-        \"Action\": [
-          \"ssm:GetParametersByPath\",
-          \"ssm:GetParameters\",
-          \"ssm:GetParameter\"
-        ],
-        \"Resource\": [
-          \"arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/aria\",
-          \"arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/aria/*\"
-        ]
-      }
-    ]
-  }"
-```
-
-</details>
-
-<details>
-<summary>Why this permission is needed</summary>
-
-`ssm:GetParametersByPath`, `ssm:GetParameters`, and `ssm:GetParameter` let the
-agent load its configuration from Parameter Store at startup. Module 03 only
-calls `GetParametersByPath`, but the other two are included so later modules that
-fetch individual parameters work without a policy change. Two resource ARNs are
-required: `parameter/aria` matches the path itself (what `GetParametersByPath`
-authorizes against), and `parameter/aria/*` matches the individual parameters
-under it.
-
-Module 04 extends this same role with `bedrock:Retrieve` when the Knowledge Base
-is introduced.
-
-</details>
-
----
-
-## Step 2 — Add Configuration to SSM Parameter Store
-
-Aria loads dynamic configuration from SSM Parameter Store at container startup.
-This separates configuration from code — you can change the model without
-rebuilding or redeploying the container.
-
-Parameters are stored under the `/aria/` prefix:
+Aria reads these parameters once at container startup (see `config.py`).
+Parameters live under the `/aria/` prefix:
 
 | SSM Parameter    | Purpose              | Value to set                     |
 |------------------|----------------------|----------------------------------|
@@ -358,12 +169,24 @@ export AWS_REGION=us-east-1
 
 ---
 
-## Step 3 — Deploy to AgentCore Runtime
+## Step 3 — Create the ECR Repository
 
-This course uses **Docker** as the deployment method throughout. A Zip-based
-alternative is included in the collapsible section at the end of this step.
+AgentCore Runtime pulls Aria's container image from Amazon Elastic Container
+Registry (ECR). Create the repository now — before the execution role — so that
+when we grant the role permission to pull images, the repository it pulls from
+already exists.
 
-#### 3a. Create an ECR repository
+### Via AWS Console
+
+1. Go to **AWS Console → Amazon ECR → Repositories → Create repository**
+2. **Visibility settings**: Private
+3. **Repository name**: `aria-agent`
+4. Leave the other settings at their defaults
+5. Click **Create**
+6. Note the repository **URI** (e.g. `<account>.dkr.ecr.us-east-1.amazonaws.com/aria-agent`)
+
+<details>
+<summary>Via CLI (Optional)</summary>
 
 ```bash
 aws ecr create-repository \
@@ -373,7 +196,154 @@ aws ecr create-repository \
 
 Note the `repositoryUri` from the output.
 
-#### 3b. Build and push the image
+</details>
+
+---
+
+## Step 4 — Create the Agent Execution IAM Role
+
+AgentCore Runtime needs an IAM role to invoke Bedrock models, pull the container
+image from ECR, read configuration from SSM, and write logs. Create it once here
+— every later module reuses this same role, adding permissions as new
+capabilities are introduced.
+
+### Via AWS Console
+
+1. Go to **AWS Console → IAM → Roles → Create role**
+2. **Trusted entity type**: AWS service
+3. **Use case**: scroll down and select **Amazon Bedrock AgentCore** — this automatically configures the correct trust policy
+4. Click **Next**
+5. Attach these managed policies:
+   - `AmazonBedrockFullAccess` — invoke Bedrock models
+   - `BedrockAgentCoreFullAccess` — Runtime operations
+   - `CloudWatchLogsFullAccess` — write logs
+   - `AmazonEC2ContainerRegistryReadOnly` — pull the image from the ECR repo you just created
+6. Click **Next**
+7. **Role name**: `AriaAgentExecutionRole`
+8. Click **Create role**
+9. Open the new role and choose **Add permissions → Create inline policy** to add
+   SSM read access for the `/aria/` parameters from Step 2:
+   - Select the **JSON** tab and paste the policy below
+   - Replace `<AWS_REGION>` and `<AWS_ACCOUNT_ID>`
+   - Click **Next**, name it `AriaRuntimeConfigAccess`, and click **Create policy**
+10. Note down the **Role ARN**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SSMReadAriaConfig",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParametersByPath",
+        "ssm:GetParameters",
+        "ssm:GetParameter"
+      ],
+      "Resource": [
+        "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:parameter/aria",
+        "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:parameter/aria/*"
+      ]
+    }
+  ]
+}
+```
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+```bash
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Create trust policy
+cat > trust-policy.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Service": "bedrock-agentcore.amazonaws.com" },
+    "Action": "sts:AssumeRole"
+  }]
+}
+EOF
+
+# Create the role
+aws iam create-role \
+  --role-name AriaAgentExecutionRole \
+  --assume-role-policy-document file://trust-policy.json
+
+# Attach the managed policies
+for POLICY in \
+  arn:aws:iam::aws:policy/AmazonBedrockFullAccess \
+  arn:aws:iam::aws:policy/BedrockAgentCoreFullAccess \
+  arn:aws:iam::aws:policy/CloudWatchLogsFullAccess \
+  arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly; do
+  aws iam attach-role-policy --role-name AriaAgentExecutionRole --policy-arn "$POLICY"
+done
+
+# Add the SSM read inline policy
+aws iam put-role-policy \
+  --role-name AriaAgentExecutionRole \
+  --policy-name AriaRuntimeConfigAccess \
+  --policy-document "{
+    \"Version\": \"2012-10-17\",
+    \"Statement\": [
+      {
+        \"Sid\": \"SSMReadAriaConfig\",
+        \"Effect\": \"Allow\",
+        \"Action\": [
+          \"ssm:GetParametersByPath\",
+          \"ssm:GetParameters\",
+          \"ssm:GetParameter\"
+        ],
+        \"Resource\": [
+          \"arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/aria\",
+          \"arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/aria/*\"
+        ]
+      }
+    ]
+  }"
+
+# Get the Role ARN
+aws iam get-role --role-name AriaAgentExecutionRole --query "Role.Arn" --output text
+
+# Clean up
+rm trust-policy.json
+```
+
+</details>
+
+<details>
+<summary>Why these permissions</summary>
+
+- **`AmazonEC2ContainerRegistryReadOnly`** grants `ecr:GetAuthorizationToken`,
+  `ecr:BatchGetImage`, and `ecr:GetDownloadUrlForLayer` — the minimum needed for
+  AgentCore to pull the container image. (It applies account-wide; in real
+  production you might scope image pulls to the specific repository.)
+- **SSM read** (`GetParametersByPath` / `GetParameters` / `GetParameter`) lets the
+  agent load its configuration at startup. Module 03 only calls
+  `GetParametersByPath`, but the other two are included so later modules that fetch
+  individual parameters work without a policy change. Two resource ARNs are
+  required: `parameter/aria` matches the path itself, and `parameter/aria/*`
+  matches the individual parameters under it.
+
+Module 02 ran Aria locally and needed no role at all. Module 04 later extends this
+same role with `bedrock:Retrieve` when the Knowledge Base is introduced.
+
+</details>
+
+---
+
+## Step 5 — Build, Push, and Deploy to AgentCore Runtime
+
+This course uses **Docker** as the deployment method throughout. A Zip-based
+alternative is included in the collapsible section at the end of this step.
+
+#### 5a. Build and push the image
+
+You created the `aria-agent` ECR repository in Step 3. Now build the image and
+push it there:
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -408,7 +378,7 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 
 </details>
 
-#### 3c. Create the Runtime via AWS Console
+#### 5b. Create the Runtime via AWS Console
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
 2. Configure:
@@ -424,7 +394,7 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 5. Note down the **Agent Runtime ARN**
 
 <details>
-<summary>3d. Create the Runtime via CLI (Optional)</summary>
+<summary>5c. Create the Runtime via CLI (Optional)</summary>
 
 ```bash
 aws bedrock-agentcore control create-agent-runtime \
@@ -494,7 +464,7 @@ aws bedrock-agentcore control create-agent-runtime \
 
 ---
 
-## Step 4 — Test with the Runtime console
+## Step 6 — Test with the Runtime console
 
 The quickest way to confirm the deployment works is the built-in Test tab:
 
@@ -530,7 +500,7 @@ or SSM parameter, restart the runtime so the new values take effect.
 
 ---
 
-## Step 5 — Test with the Streamlit chat UI
+## Step 7 — Test with the Streamlit chat UI
 
 Now interact with the deployed agent through the ShopSmart chat UI — the same
 interface a customer would use.
