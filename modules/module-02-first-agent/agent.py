@@ -25,6 +25,9 @@ capability — without changing how the agent fundamentally works:
 Run it locally:
     export AWS_REGION=us-east-1
     python agent.py
+
+Optionally override the model (default: us.anthropic.claude-sonnet-4-6):
+    export ARIA_MODEL_ID=us.anthropic.claude-haiku-4-5-20251001-v1:0
 """
 
 import logging
@@ -44,10 +47,12 @@ logging.basicConfig(
 logger = logging.getLogger("aria")
 
 # The default model is a US cross-region inference profile (the "us." prefix),
-# so the agent must run in a US region. We bind the Bedrock model to AWS_REGION
-# explicitly (default us-east-1) so it does not silently pick up a different
-# region from your AWS profile.
-MODEL_ID = "us.anthropic.claude-sonnet-4-6"
+# so the agent must run in a US region. You can override the model without
+# editing this file by setting the ARIA_MODEL_ID environment variable — see the
+# "Try a different model" section in the module README. We also bind the Bedrock
+# model to AWS_REGION explicitly (default us-east-1) so it does not silently pick
+# up a different region from your AWS profile.
+MODEL_ID = os.environ.get("ARIA_MODEL_ID", "us.anthropic.claude-sonnet-4-6")
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 # ── Simulated data ────────────────────────────────────────────────────────────

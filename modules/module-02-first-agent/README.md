@@ -169,6 +169,50 @@ course to experiment. Try:
 
 There's no build step and no redeploy — save the file and run again.
 
+### Try a different model
+
+By default Aria uses `us.anthropic.claude-sonnet-4-6`. You don't need to edit
+the code to change it — the model ID is read from the `ARIA_MODEL_ID`
+environment variable, so you can point Aria at a different model and compare
+behavior, speed, or cost.
+
+First, discover which Claude models are available in your Region. The default is
+a **cross-region inference profile** (note the `us.` prefix), so list inference
+profiles rather than base foundation models:
+
+<details>
+<summary>List available model IDs via CLI</summary>
+
+```bash
+# Claude inference profiles in your Region (these have the "us." / "global." prefix)
+aws bedrock list-inference-profiles \
+  --region "$AWS_REGION" \
+  --query "inferenceProfileSummaries[?contains(inferenceProfileId,'claude')].[inferenceProfileId,inferenceProfileName]" \
+  --output table
+```
+
+> **Base model vs. inference profile.** `aws bedrock list-foundation-models`
+> shows *base* model IDs (e.g. `anthropic.claude-...`). Many current Claude
+> models are only available through an **inference profile** — an ID prefixed
+> with `us.` or `global.` that routes requests across Regions. If you use a base
+> model ID that requires a profile, the call fails with an error about
+> on-demand throughput. When in doubt, use a `us.` profile ID from the command
+> above, and keep `AWS_REGION` set to a US Region.
+
+</details>
+
+Then run Aria with your chosen model — no code change required:
+
+```bash
+export ARIA_MODEL_ID=us.anthropic.claude-haiku-4-5-20251001-v1:0
+python modules/module-02-first-agent/agent.py
+```
+
+> Model availability changes over time and varies by account and Region, so
+> treat the command above as the source of truth rather than any specific ID
+> listed here. Whichever model you pick must be enabled for your account (see
+> [Module 00 — Prerequisites](../module-00-prerequisites/README.md)).
+
 ---
 
 <details>
