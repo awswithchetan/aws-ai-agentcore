@@ -1,6 +1,6 @@
 # Module 04 — Runtime
 
-In this module you will build the **real Aria** — a production-grade AI customer support agent written in Python using Strands Agents, deployed on AgentCore Runtime, and connected to the Knowledge Base created in Module 03.
+In this module you take Aria — the Strands agent you built and ran locally in Module 02 — and turn her into a **production-grade deployment**: rebuilt to retrieve from the Module 03 Knowledge Base and deployed on AgentCore Runtime for managed, scalable, observable hosting.
 
 This is the agent that evolves through the rest of the course. Every subsequent module adds a new capability to this same agent.
 
@@ -20,12 +20,13 @@ aria-agent/
 <details>
 <summary>How This Differs from Module 02</summary>
 
-| | Module 02 — Harness | Module 04 — Runtime |
+| | Module 02 — Local agent | Module 04 — Runtime |
 |---|---|---|
-| Agent loop | Managed by AgentCore | You write it in Python |
-| FAQ knowledge | Hardcoded in system prompt | Retrieved from Knowledge Base |
-| Framework | Black box | Strands Agents |
-| Deployment | Console config only | Python code + zip deploy |
+| Where it runs | Your laptop | AgentCore Runtime (managed cloud) |
+| FAQ knowledge | Inlined in system prompt | Retrieved from Knowledge Base |
+| Tools | Simulated (hardcoded data) | Still local here; real APIs arrive in Module 05 |
+| Entry point | CLI chat loop | `BedrockAgentCoreApp` entrypoint |
+| Scaling & sessions | None | Managed by Runtime |
 | Production ready | No | Yes |
 
 Two deployment options are covered: **Docker (recommended)** and zip.
@@ -59,7 +60,78 @@ Review the copied files in `aria-agent/` before deploying:
 
 ---
 
-## Step 1b — Add ECR Permissions to the Agent Execution IAM Role
+## Step 1b — Create the Agent Execution IAM Role
+
+AgentCore Runtime needs an IAM role to invoke Bedrock models, pull the container
+image, read configuration, and write logs. Create it once here — every later
+module reuses this same role.
+
+### Via AWS Console
+
+1. Go to **AWS Console → IAM → Roles → Create role**
+2. **Trusted entity type**: AWS service
+3. **Use case**: scroll down and select **Amazon Bedrock AgentCore** — this automatically configures the correct trust policy
+4. Click **Next**
+5. Attach these managed policies:
+   - `AmazonBedrockFullAccess`
+   - `BedrockAgentCoreFullAccess`
+   - `CloudWatchLogsFullAccess`
+6. Click **Next**
+7. **Role name**: `AriaAgentExecutionRole`
+8. Click **Create role**
+9. Note down the **Role ARN**
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+```bash
+# Create trust policy
+cat > trust-policy.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {
+      "Service": "bedrock-agentcore.amazonaws.com"
+    },
+    "Action": "sts:AssumeRole"
+  }]
+}
+EOF
+
+# Create role
+aws iam create-role \
+  --role-name AriaAgentExecutionRole \
+  --assume-role-policy-document file://trust-policy.json
+
+# Attach policies
+aws iam attach-role-policy \
+  --role-name AriaAgentExecutionRole \
+  --policy-arn arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+
+aws iam attach-role-policy \
+  --role-name AriaAgentExecutionRole \
+  --policy-arn arn:aws:iam::aws:policy/BedrockAgentCoreFullAccess
+
+aws iam attach-role-policy \
+  --role-name AriaAgentExecutionRole \
+  --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
+# Get Role ARN
+aws iam get-role \
+  --role-name AriaAgentExecutionRole \
+  --query "Role.Arn" \
+  --output text
+
+# Clean up
+rm trust-policy.json
+```
+
+</details>
+
+---
+
+## Step 1c — Add ECR Permissions to the Agent Execution IAM Role
 
 ### Via AWS Console
 
@@ -86,15 +158,15 @@ aws iam attach-role-policy \
 `ecr:GetAuthorizationToken`, `ecr:BatchGetImage`, and `ecr:GetDownloadUrlForLayer`.
 These are the minimum required for AgentCore to pull a container image — nothing more.
 
-The `AriaAgentExecutionRole` from Module 02 didn't need ECR permissions because
-the Harness had no container to pull. Now that we deploy a container image, this
-is required.
+Module 02 ran Aria locally, so it needed no execution role at all. Now that we
+deploy a container image on Runtime, the role and this ECR permission are
+required.
 
 </details>
 
 ---
 
-## Step 1c — Add SSM and Knowledge Base Permissions to the Agent Execution IAM Role
+## Step 1d — Add SSM and Knowledge Base Permissions to the Agent Execution IAM Role
 
 At runtime, Aria reads its configuration from SSM Parameter Store and retrieves
 answers from the Bedrock Knowledge Base. The execution role needs an inline

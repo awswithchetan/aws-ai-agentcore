@@ -1,0 +1,7 @@
+# Module 02 agent dependencies
+# A self-contained local agent — only Strands (agent framework) and the AWS SDK
+# (used by Strands to call the Bedrock model) are required. No AgentCore Runtime,
+# containers, or backend services in this module.
+
+boto3>=1.38.0
+strands-agents>=1.54.0

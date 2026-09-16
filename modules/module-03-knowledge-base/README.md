@@ -1,10 +1,12 @@
 # Module 03 — Knowledge Base
 
-Module 02 gave us a quick way to spin up Aria using the managed AgentCore Harness. Starting with this module, we begin building the agent ourselves, one production capability at a time.
+In Module 02 we built Aria as a self-contained local agent, with her FAQ knowledge inlined directly in the system prompt. Starting with this module, we begin externalizing those pieces into managed, production-grade capabilities — one at a time.
 
-The first thing our own agent needs is knowledge about ShopSmart. Before we write the custom agent code in Module 04, we will create a Knowledge Base containing the company's official policies, shipping information, payment methods, support details, and FAQs. This gives Aria a reliable source of ShopSmart-specific information instead of expecting the model to answer from general knowledge.
+The first piece to externalize is knowledge. Instead of baking ShopSmart's policies into the prompt, we move them into a Knowledge Base that Aria searches at query time.
 
-This order is intentional: we establish the grounding layer first, then connect it to our custom agent. In later modules, the same agent will gain tools, memory, authentication, governance, and browser automation.
+In this module you create a Knowledge Base containing the company's official policies, shipping information, payment methods, support details, and FAQs. This gives Aria a reliable, updatable source of ShopSmart-specific information instead of relying on content hardcoded in the prompt. When we rebuild Aria's agent code on Runtime in Module 04, she will retrieve from this Knowledge Base.
+
+This order is intentional: we establish the grounding layer first, then connect it to the agent. In later modules, the same agent will gain real tools, memory, authentication, governance, and browser automation.
 
 In this module you will create the **ShopSmart Knowledge Base** — a Bedrock-managed vector store that gives Aria access to ShopSmart's official content. This is persistent infrastructure used by Aria throughout the rest of the course.
 

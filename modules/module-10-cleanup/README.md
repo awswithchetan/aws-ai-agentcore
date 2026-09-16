@@ -171,9 +171,7 @@ course. `browser_session(...)` uses the system Browser Tool and creates a
 short-lived session per lookup; those sessions stop automatically. There is no
 separate Browser resource to delete.
 
-## Step 5 — Delete Memory and Harness resources
-
-### Memory
+## Step 5 — Delete Memory resources
 
 Find the Memory created as `aria-memory`, verify its ID, and delete it:
 
@@ -189,22 +187,7 @@ aws bedrock-agentcore-control delete-memory \
   --region "$AWS_REGION"
 ```
 
-### Harness
-
-Module 02 normally deletes `aria_harness` before Module 03. If it still exists:
-
-```bash
-aws bedrock-agentcore-control list-harnesses \
-  --region "$AWS_REGION" \
-  --query "harnesses[?name=='aria_harness']" \
-  --output table
-
-aws bedrock-agentcore-control delete-harness \
-  --harness-id <your-harness-id> \
-  --region "$AWS_REGION"
-```
-
-If your AWS CLI does not expose these list operations, use the AgentCore
+If your AWS CLI does not expose this list operation, use the AgentCore
 console to locate and delete the named resource.
 
 ## Step 6 — Delete the Knowledge Base
@@ -348,7 +331,7 @@ aws ssm delete-parameters \
 Only delete IAM resources after confirming no other workload uses them.
 Review the IAM console first:
 
-- `AriaAgentExecutionRole` — used by the Harness and Runtime.
+- `AriaAgentExecutionRole` — used by the Runtime.
 - The Gateway service role created for `shopsmart-gateway`.
 - The Knowledge Base service role created for `shopsmart-kb`.
 - `ShopSmartLambdaRole` — normally removed with the backend stack.

@@ -1,17 +1,11 @@
 """
 ShopSmart — Aria Customer Support Chat UI
 
-A Streamlit-based chat interface for interacting with the Aria agent.
-Supports both AgentCore Runtime (Module 04+) and Harness (Module 02).
+A Streamlit-based chat interface for interacting with the Aria agent deployed
+on AgentCore Runtime (Module 04+).
 
 Usage:
-    # For Runtime agent (Module 04+):
     export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:<account>:runtime/aria-XXXXXXXX"
-    export AWS_REGION="us-east-1"
-    streamlit run app.py
-
-    # For Harness agent (Module 02):
-    export ARIA_HARNESS_ARN="arn:aws:bedrock-agentcore:us-east-1:<account>:harness/aria_harness-XXXXXXXX"
     export AWS_REGION="us-east-1"
     streamlit run app.py
 """
@@ -33,22 +27,14 @@ st.set_page_config(
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 RUNTIME_ARN = os.environ.get("ARIA_RUNTIME_ARN")
-HARNESS_ARN = os.environ.get("ARIA_HARNESS_ARN")
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 
-# Determine mode
-if RUNTIME_ARN:
-    MODE = "runtime"
-elif HARNESS_ARN:
-    MODE = "harness"
-else:
+if not RUNTIME_ARN:
     st.error(
         "**No agent ARN configured.**\n\n"
-        "Set one of the following environment variables:\n"
+        "Set the Runtime ARN environment variable:\n"
         "```\n"
         "export ARIA_RUNTIME_ARN='arn:aws:bedrock-agentcore:...'\n"
-        "# or\n"
-        "export ARIA_HARNESS_ARN='arn:aws:bedrock-agentcore:...'\n"
         "```"
     )
     st.stop()
@@ -90,35 +76,14 @@ if not st.session_state.messages:
 # ── Invoke function ───────────────────────────────────────────────────────────
 
 def invoke_aria(prompt: str) -> str:
-    """Invoke Aria via Runtime or Harness depending on configuration."""
-
-    if MODE == "runtime":
-        response = client.invoke_agent_runtime(
-            agentRuntimeArn=RUNTIME_ARN,
-            runtimeSessionId=st.session_state.session_id,
-            payload=json.dumps({"prompt": prompt}),
-        )
-        result = json.loads(response["response"].read())
-        return result.get("result", "Sorry, I could not process your request.")
-
-    else:  # harness
-        response = client.invoke_harness(
-            harnessArn=HARNESS_ARN,
-            runtimeSessionId=st.session_state.session_id,
-            messages=[{
-                "role": "user",
-                "content": [{"text": prompt}]
-            }],
-        )
-        full_response = ""
-        for event in response["stream"]:
-            if "contentBlockDelta" in event:
-                delta = event["contentBlockDelta"].get("delta", {})
-                if "text" in delta:
-                    full_response += delta["text"]
-            elif "runtimeClientError" in event:
-                return f"Error: {event['runtimeClientError']['message']}"
-        return full_response
+    """Invoke Aria on AgentCore Runtime."""
+    response = client.invoke_agent_runtime(
+        agentRuntimeArn=RUNTIME_ARN,
+        runtimeSessionId=st.session_state.session_id,
+        payload=json.dumps({"prompt": prompt}),
+    )
+    result = json.loads(response["response"].read())
+    return result.get("result", "Sorry, I could not process your request.")
 
 # ── Chat input ────────────────────────────────────────────────────────────────
 
@@ -141,7 +106,6 @@ if prompt := st.chat_input("Ask Aria something..."):
 
 with st.sidebar:
     st.header("Session Info")
-    st.caption(f"Mode: `{MODE}`")
     st.caption(f"Session ID: `{st.session_state.session_id[:8]}...`")
     st.caption(f"Messages: {len(st.session_state.messages)}")
     st.divider()

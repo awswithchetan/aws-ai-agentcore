@@ -257,4 +257,4 @@ bash modules/module-00-prerequisites/install-prerequisites.sh
 
 ## Next step
 
-Proceed to [Module 02 — Your First Agent with Harness](../module-02-harness/README.md).
+Proceed to [Module 01 — AgentCore Platform Overview](../module-01-platform-overview/README.md).
