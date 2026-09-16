@@ -359,6 +359,24 @@ What is the latest status of order ORD001?
 
 </details>
 
+---
+
+## Congratulations!
+
+You've successfully completed all the modules in this course. Here's what you built:
+
+**Aria** — ShopSmart's AI customer support agent with:
+
+- **Runtime** — Amazon Bedrock AgentCore Runtime that orchestrates the agent's capabilities
+- **Gateway** — Real-time integration with ShopSmart's backend APIs (orders, products, returns)
+- **Knowledge Base** — ShopSmart FAQ with custom grounding data
+- **Memory** — Stateful conversations that remember customers across sessions
+- **Identity** — Customer authentication via Amazon Cognito with JWT handling
+- **Policy** — Guardrails powered by Amazon Cedar for governance and access control
+- **Browser** — Ability to scrape live carrier tracking pages using Playwright
+
+You deployed Aria end-to-end on AWS, learning how to connect real tools, manage state, authenticate users, enforce policies, and interact with web pages — all using Amazon Bedrock AgentCore capabilities.
+
 ## Next step
 
 Proceed to [Module 10 — Cleanup](../module-10-cleanup/README.md)
