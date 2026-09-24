@@ -100,29 +100,58 @@ Parameters live under the `/aria/` prefix:
 |------------------|----------------------|----------------------------------|
 | `/aria/region`   | AWS region           | e.g. `us-east-1`                 |
 | `/aria/model_id` | Bedrock model to use | `us.anthropic.claude-sonnet-4-6` |
+| `/aria/runtime_arn` | AgentCore Runtime ARN | `arn:aws:bedrock-agentcore:...` (create after deploying the Runtime) |
 
 ### Via AWS Console
 
-1. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
-2. For each row in the table above:
-   - **Name**: the full path (e.g. `/aria/model_id`)
+1. Deploy the Runtime first (Steps 5a–5e above) and note down the **Agent Runtime ARN**
+2. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
+3. Create `/aria/region`:
+   - **Name**: `/aria/region`
    - **Tier**: Standard
    - **Type**: String
-   - **Value**: as shown in the table
-3. Click **Create parameter** and repeat for both
+   - **Value**: e.g. `us-east-1`
+4. Create `/aria/model_id`:
+   - **Name**: `/aria/model_id`
+   - **Tier**: Standard
+   - **Type**: String
+   - **Value**: `us.anthropic.claude-sonnet-4-6`
+5. Create `/aria/runtime_arn`:
+   - **Name**: `/aria/runtime_arn`
+   - **Tier**: Standard
+   - **Type**: String
+   - **Value**: the Runtime ARN from Step 1 (e.g. `arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/aria-XXXXXXXX`)
+6. Click **Create parameter** for each
 
 <details>
 <summary>Via CLI (Optional)</summary>
 
 ```bash
 export AWS_REGION=us-east-1
+export RUNTIME_ARN="<your-runtime-arn>"
 
 aws ssm put-parameter --name /aria/region --type String \
   --value "$AWS_REGION" --overwrite --region "$AWS_REGION"
 
 aws ssm put-parameter --name /aria/model_id --type String \
   --value "us.anthropic.claude-sonnet-4-6" --overwrite --region "$AWS_REGION"
+
+aws ssm put-parameter --name /aria/runtime_arn --type String \
+  --value "$RUNTIME_ARN" --overwrite --region "$AWS_REGION"
 ```
+
+<details>
+<summary>Via helper script</summary>
+
+Run the provided `put_ssm_params.sh` script to create all parameters at once:
+
+```bash
+export RUNTIME_ARN="<your-runtime-arn>"
+export AWS_REGION=us-east-1
+bash aria-agent/scripts/put_ssm_params.sh
+```
+
+</details>
 
 </details>
 
@@ -166,6 +195,10 @@ export AWS_REGION=us-east-1
 ```
 
 </details>
+
+> **Note**: Parameters under `/aria/` are read once at agent startup (cold start).
+> Changing a parameter won't affect a running container — restart the Runtime
+> to pick up new values.
 
 ---
 
