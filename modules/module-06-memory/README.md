@@ -387,7 +387,6 @@ cp modules/module-06-memory/app.py streamlit-ui/app.py
 Run the UI:
 
 ```bash
-export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:$AWS_ACCOUNT_ID:runtime/<your-runtime-id>"
 export AWS_REGION="us-east-1"
 streamlit run streamlit-ui/app.py
 ```

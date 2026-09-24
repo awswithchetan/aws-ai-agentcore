@@ -503,7 +503,6 @@ interface a customer would use.
 ```bash
 cp modules/module-03-runtime/app.py streamlit-ui/app.py
 
-export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:<YOUR_ACCOUNT_ID>:runtime/aria-XXXXXXXX"
 export AWS_REGION="us-east-1"
 streamlit run streamlit-ui/app.py
 ```

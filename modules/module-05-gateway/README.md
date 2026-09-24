@@ -508,7 +508,6 @@ Make sure you copied the Module 05 `app.py` to `streamlit-ui/app.py` in Step 6,
 then launch it:
 
 ```bash
-export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:$AWS_ACCOUNT_ID:runtime/<your-runtime-id>"
 export AWS_REGION="us-east-1"
 streamlit run streamlit-ui/app.py
 ```

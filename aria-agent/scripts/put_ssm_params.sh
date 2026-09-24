@@ -7,6 +7,7 @@
 # agent container.
 #
 # Usage:
+#   export RUNTIME_ARN=arn:aws:bedrock-agentcore:us-east-1:<account>:runtime/aria-XXXXXXXX
 #   export KNOWLEDGE_BASE_ID=kb-XXXXXXXXXX
 #   export AWS_REGION=us-east-1          # optional, defaults to us-east-1
 #   bash scripts/put_ssm_params.sh
@@ -23,6 +24,7 @@ PREFIX="/aria"
 # ── Values — edit these or override via environment variables ─────────────────
 
 MODEL_ID="${MODEL_ID:-us.anthropic.claude-sonnet-4-6}"
+RUNTIME_ARN="${RUNTIME_ARN:?  ERROR: RUNTIME_ARN environment variable is required}"
 KNOWLEDGE_BASE_ID="${KNOWLEDGE_BASE_ID:?  ERROR: KNOWLEDGE_BASE_ID environment variable is required}"
 KB_NUM_RESULTS="${KB_NUM_RESULTS:-5}"
 API_BASE_URL="${API_BASE_URL:-}"
@@ -56,6 +58,7 @@ echo ""
 
 put_param "region"            "$REGION"
 put_param "model_id"          "$MODEL_ID"
+put_param "runtime_arn"       "$RUNTIME_ARN"
 put_param "knowledge_base_id" "$KNOWLEDGE_BASE_ID"
 put_param "kb_num_results"    "$KB_NUM_RESULTS"
 if [ -n "$API_BASE_URL" ]; then

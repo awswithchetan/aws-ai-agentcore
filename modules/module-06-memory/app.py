@@ -5,7 +5,6 @@ A Streamlit-based chat interface for interacting with the Aria agent deployed
 on AgentCore Runtime (Module 03+).
 
 Usage:
-    export ARIA_RUNTIME_ARN="arn:aws:bedrock-agentcore:us-east-1:<account>:runtime/aria-XXXXXXXX"
     export AWS_REGION="us-east-1"
     streamlit run app.py
 """
@@ -26,13 +25,28 @@ st.set_page_config(
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-RUNTIME_ARN = os.environ.get("ARIA_RUNTIME_ARN")
 REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+@st.cache_resource
+def load_runtime_arn() -> str:
+    """Load the Runtime ARN from SSM (/aria/runtime_arn), fallback to env var."""
+    try:
+        ssm = boto3.client("ssm", region_name=REGION)
+        return ssm.get_parameter(Name="/aria/runtime_arn")["Parameter"]["Value"]
+    except Exception:
+        return os.environ.get("ARIA_RUNTIME_ARN", "")
+
+RUNTIME_ARN = load_runtime_arn()
 
 if not RUNTIME_ARN:
     st.error(
         "**No agent ARN configured.**\n\n"
-        "Set the Runtime ARN environment variable:\n"
+        "Either add it to SSM Parameter Store:\n"
+        "```\n"
+        "export RUNTIME_ARN='arn:aws:bedrock-agentcore:...'\n"
+        "bash aria-agent/scripts/put_ssm_params.sh\n"
+        "```\n"
+        "Or set the environment variable directly:\n"
         "```\n"
         "export ARIA_RUNTIME_ARN='arn:aws:bedrock-agentcore:...'\n"
         "```"
