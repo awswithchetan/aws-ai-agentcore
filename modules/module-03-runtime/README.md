@@ -59,7 +59,7 @@ Note the `repositoryUri` from the output.
 
 ---
 
-## Step 4 — Create the Agent Execution IAM Role
+## Step 2 — Create the Agent Execution IAM Role
 
 AgentCore Runtime needs an IAM role to invoke Bedrock models, pull the container
 image from ECR, read configuration from SSM, and write logs. Create it once here
