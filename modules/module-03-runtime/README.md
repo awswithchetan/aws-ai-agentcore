@@ -2,16 +2,15 @@
 
 In Module 02 you built Aria as a self-contained Strands agent and ran her in your
 terminal. In this module you deploy that **same agent** onto Amazon Bedrock
-AgentCore Runtime — managed, scalable, observable hosting — with the smallest
-possible change to the code.
+AgentCore Runtime.
 
 The point of this module is to learn Runtime *in isolation*. Aria's tools are
 still simulated and her FAQ knowledge is still inline in the system prompt; we
-change nothing about her behavior. The only meaningful difference from Module 02
+change nothing about it's behavior. The only meaningful difference from Module 02
 is the entrypoint: a local CLI loop becomes a `BedrockAgentCoreApp` entrypoint
 that Runtime calls on every request.
 
-Once she's deployed, you'll test her two ways — the built-in Runtime **Test**
+Once it is deployed, you'll test it in two ways — the built-in Runtime **Test**
 console, then the ShopSmart Streamlit chat UI.
 
 This is the agent that evolves through the rest of the course. Every subsequent
@@ -19,19 +18,6 @@ module rebuilds and redeploys this same agent with one new capability — starti
 with a real Knowledge Base in Module 04.
 
 ## What You Will Build
-
-```
-aria-agent/
-├── agent.py          # The Module 02 agent + a BedrockAgentCoreApp entrypoint
-├── config.py         # Loads model + region from SSM (no KB yet)
-├── requirements.txt  # Strands + the AgentCore Runtime SDK
-├── Dockerfile        # Container image (recommended — framework-agnostic)
-└── .dockerignore     # Keeps the build context clean
-```
-
-<details>
-<summary>How this differs from Module 02</summary>
-
 | | Module 02 — Local agent | Module 03 — Runtime |
 |---|---|---|
 | Where it runs | Your laptop | AgentCore Runtime (managed cloud) |
@@ -41,128 +27,8 @@ aria-agent/
 | Tools | Simulated (hardcoded data) | **Still simulated** — unchanged |
 | FAQ knowledge | Inline in system prompt | **Still inline** — unchanged |
 
-Everything about Aria's *behavior* is identical to Module 02. We're only
-changing how she is hosted and invoked. The simulated pieces become real in
-later modules (Knowledge Base in 04, real tools via Gateway in 05, and so on).
-
-Two deployment options are covered: **Docker (recommended)** and zip.
-Docker is preferred because it works identically regardless of which agent
-framework you use — swap `requirements.txt` and `agent.py` for LangChain,
-CrewAI, or any other framework without touching the deployment pipeline.
-
-</details>
-
 ---
-
-## Step 1 — Copy the Module 03 Agent Files into the Deployment Workspace
-
-The repository keeps `aria-agent/` as the active deployment directory. It is a
-generated workspace that accumulates capability files from later modules, so
-first copy the complete Module 03 snapshot into it.
-
-Run from the repository root:
-
-```bash
-cp modules/module-03-runtime/agent.py aria-agent/agent.py
-cp modules/module-03-runtime/config.py aria-agent/config.py
-cp modules/module-03-runtime/requirements.txt aria-agent/requirements.txt
-cp modules/module-03-runtime/Dockerfile aria-agent/Dockerfile
-```
-
-Review the copied files in `aria-agent/` before deploying:
-
-- [`agent.py`](agent.py) — the Module 02 agent with a `BedrockAgentCoreApp` entrypoint
-- [`config.py`](config.py) — loads model + region from SSM
-- [`requirements.txt`](requirements.txt) — Module 03 dependencies
-- [`Dockerfile`](Dockerfile) — Module 03 container definition
-
-> Open `agent.py` and compare it to your Module 02 file. The tools, data, and
-> system prompt are identical — the new parts are the `app = BedrockAgentCoreApp()`
-> line and the `@app.entrypoint` function near the bottom.
-
----
-
-## Step 2 — Externalize Configuration to SSM Parameter Store
-
-In Module 02 the model ID lived in the code (an `ARIA_MODEL_ID` env var with a default). For a
-deployed service, the values which are dynamic like the model, the region etc. we externalize them into **SSM Parameter Store** so you can
-change them without rebuilding or redeploying.
-
-Aria reads these parameters once at container startup (see `config.py`).
-Parameters live under the `/aria/` prefix:
-
-| SSM Parameter    | Purpose              | Value to set                     |
-|------------------|----------------------|----------------------------------|
-| `/aria/region`   | AWS region           | e.g. `us-east-1`                 |
-| `/aria/model_id` | Bedrock model to use | `us.anthropic.claude-sonnet-4-6` |
-
-### Via AWS Console
-
-1. Deploy the Runtime first (Steps 5a–5e above) and note down the **Agent Runtime ARN**
-2. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
-3. Create `/aria/region`:
-   - **Name**: `/aria/region`
-   - **Tier**: Standard
-   - **Type**: String
-   - **Value**: e.g. `us-east-1`
-4. Create `/aria/model_id`:
-   - **Name**: `/aria/model_id`
-   - **Tier**: Standard
-   - **Type**: String
-   - **Value**: `us.anthropic.claude-sonnet-4-6`
-5. Click **Create parameter** for each
-
-<details>
-<summary>Via CLI (Optional)</summary>
-
-```bash
-export AWS_REGION=us-east-1
-export RUNTIME_ARN="<your-runtime-arn>"
-
-aws ssm put-parameter --name /aria/region --type String \
-  --value "$AWS_REGION" --overwrite --region "$AWS_REGION"
-
-aws ssm put-parameter --name /aria/model_id --type String \
-  --value "us.anthropic.claude-sonnet-4-6" --overwrite --region "$AWS_REGION"
-```
-
-</details>
-
-<details>
-<summary>How to retrieve or validate the model ID</summary>
-
-The default model ID is `us.anthropic.claude-sonnet-4-6` — a cross-region
-inference profile (note the `us.` prefix). To use a different model, or confirm
-the ID is valid in your region, list the available Claude inference profiles:
-
-```bash
-aws bedrock list-inference-profiles \
-  --region us-east-1 \
-  --query "inferenceProfileSummaries[?contains(inferenceProfileId, 'claude')].inferenceProfileId" \
-  --output table
-```
-
-</details>
-
-<details>
-<summary>Why SSM instead of environment variables?</summary>
-
-- Model upgrades are configuration changes, not code changes.
-- Changing an env var requires a container redeploy; changing an SSM parameter does not.
-- SSM gives you an audit trail (who changed what, when) out of the box.
-
-To update a parameter later: edit it in Parameter Store, then restart the
-Runtime — config is read once at cold start. No code change, no image rebuild.
-
-</details>
-
-> **Note**: Parameters under `/aria/` are read once at agent startup (cold start).
-> Changing a parameter won't affect a running container — restart the Runtime
-> to pick up new values.
-
----
-
-## Step 3 — Create the ECR Repository
+## Step 1 — Create the ECR Repository
 
 AgentCore Runtime pulls Aria's container image from Amazon Elastic Container
 Registry (ECR). Create the repository now — before the execution role — so that
@@ -328,10 +194,111 @@ same role with `bedrock:Retrieve` when the Knowledge Base is introduced.
 
 ---
 
-## Step 5 — Build and Push the container image for the Agent
+## Step 3 — Create and store the runtime parameters used by Agent
 
-This course uses **Docker** as the deployment method throughout. A Zip-based
-alternative is included in the collapsible section at the end of this step.
+In Module 02 the model ID lived in the code (an `ARIA_MODEL_ID` env var with a default). For a
+deployed service, the values which are dynamic like the model, the region etc. we externalize them into **SSM Parameter Store** so you can
+change them without rebuilding or redeploying.
+
+Aria reads these parameters once at container startup (see `config.py`).
+Parameters live under the `/aria/` prefix:
+
+| SSM Parameter    | Purpose              | Value to set                     |
+|------------------|----------------------|----------------------------------|
+| `/aria/region`   | AWS region           | e.g. `us-east-1`                 |
+| `/aria/model_id` | Bedrock model to use | `us.anthropic.claude-sonnet-4-6` |
+
+### Via AWS Console
+
+1. Deploy the Runtime first (Steps 5a–5e above) and note down the **Agent Runtime ARN**
+2. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
+3. Create `/aria/region`:
+   - **Name**: `/aria/region`
+   - **Tier**: Standard
+   - **Type**: String
+   - **Value**: e.g. `us-east-1`
+4. Create `/aria/model_id`:
+   - **Name**: `/aria/model_id`
+   - **Tier**: Standard
+   - **Type**: String
+   - **Value**: `us.anthropic.claude-sonnet-4-6`
+5. Click **Create parameter** for each
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+```bash
+export AWS_REGION=us-east-1
+export RUNTIME_ARN="<your-runtime-arn>"
+
+aws ssm put-parameter --name /aria/region --type String \
+  --value "$AWS_REGION" --overwrite --region "$AWS_REGION"
+
+aws ssm put-parameter --name /aria/model_id --type String \
+  --value "us.anthropic.claude-sonnet-4-6" --overwrite --region "$AWS_REGION"
+```
+
+</details>
+
+<details>
+<summary>How to retrieve or validate the model ID</summary>
+
+The default model ID is `us.anthropic.claude-sonnet-4-6` — a cross-region
+inference profile (note the `us.` prefix). To use a different model, or confirm
+the ID is valid in your region, list the available Claude inference profiles:
+
+```bash
+aws bedrock list-inference-profiles \
+  --region us-east-1 \
+  --query "inferenceProfileSummaries[?contains(inferenceProfileId, 'claude')].inferenceProfileId" \
+  --output table
+```
+
+</details>
+
+<details>
+<summary>Why SSM instead of environment variables?</summary>
+
+- Model upgrades are configuration changes, not code changes.
+- Changing an env var requires a container redeploy; changing an SSM parameter does not.
+- SSM gives you an audit trail (who changed what, when) out of the box.
+
+To update a parameter later: edit it in Parameter Store, then restart the
+Runtime — config is read once at cold start. No code change, no image rebuild.
+
+</details>
+
+---
+
+## Step 4 — Build and Push the container image for the Agent
+
+This course uses **Docker** as the deployment method throughout. 
+
+#### Get the Runtime specific code for the agent
+The repository keeps `aria-agent/` as the active deployment directory. It is a
+generated workspace that accumulates capability files from later modules, so
+first copy the complete Module 03 snapshot into it.
+
+Run from the repository root:
+
+```bash
+cp modules/module-03-runtime/agent.py aria-agent/agent.py
+cp modules/module-03-runtime/config.py aria-agent/config.py
+cp modules/module-03-runtime/requirements.txt aria-agent/requirements.txt
+cp modules/module-03-runtime/Dockerfile aria-agent/Dockerfile
+```
+
+Review the copied files in `aria-agent/` before deploying:
+
+- [`agent.py`](agent.py) — the Module 02 agent with a `BedrockAgentCoreApp` entrypoint
+- [`config.py`](config.py) — loads model + region from SSM
+- [`requirements.txt`](requirements.txt) — Module 03 dependencies
+- [`Dockerfile`](Dockerfile) — Module 03 container definition
+
+> Open `agent.py` and compare it to your Module 02 file. The tools, data, and
+> system prompt are identical — the new parts are the `app = BedrockAgentCoreApp()`
+> line and the `@app.entrypoint` function near the bottom.
+
 
 #### Build and push the image
 
@@ -369,7 +336,7 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 
 ---
 
-## Step 6 — Create AgentCore Runtime and deploy Agent
+## Step 5 — Create AgentCore Runtime and deploy Agent
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
 2. Configure:
@@ -408,7 +375,7 @@ aws bedrock-agentcore control create-agent-runtime \
 
 ---
 
-## Step 7 — Test with the Runtime console
+## Step 6 — Test with the Runtime console
 
 The quickest way to confirm the deployment works is the built-in Test tab:
 
@@ -443,7 +410,7 @@ or SSM parameter, restart the runtime so the new values take effect.
 </details>
 
 ---
-## Step 8 — Save AgentCore Runtime ARN to SSM Parameter Store
+## Step 7 — Save AgentCore Runtime ARN to SSM Parameter Store
 This parameter will be used by our customer facing app (Streamlit) to know about the Agent deployed in AgentCore Runtime and app will invoke this agent.
 
 | SSM Parameter    | Purpose              | Value to set                     |
