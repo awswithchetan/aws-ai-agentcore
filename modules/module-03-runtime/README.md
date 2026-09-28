@@ -18,8 +18,6 @@ This is the agent that evolves through the rest of the course. Every subsequent
 module rebuilds and redeploys this same agent with one new capability — starting
 with a real Knowledge Base in Module 04.
 
----
-
 ## What You Will Build
 
 ```
@@ -86,11 +84,8 @@ Review the copied files in `aria-agent/` before deploying:
 
 ## Step 2 — Externalize Configuration to SSM Parameter Store
 
-This is where we begin *productionalizing* the Module 02 agent. In Module 02 the
-model ID lived in the code (an `ARIA_MODEL_ID` env var with a default). For a
-deployed service, values that change over time — the model, the region, and
-later the Knowledge Base ID — belong in configuration, not baked into the
-container image. We externalize them into **SSM Parameter Store** so you can
+In Module 02 the model ID lived in the code (an `ARIA_MODEL_ID` env var with a default). For a
+deployed service, the values which are dynamic like the model, the region etc. we externalize them into **SSM Parameter Store** so you can
 change them without rebuilding or redeploying.
 
 Aria reads these parameters once at container startup (see `config.py`).
@@ -100,7 +95,6 @@ Parameters live under the `/aria/` prefix:
 |------------------|----------------------|----------------------------------|
 | `/aria/region`   | AWS region           | e.g. `us-east-1`                 |
 | `/aria/model_id` | Bedrock model to use | `us.anthropic.claude-sonnet-4-6` |
-| `/aria/runtime_arn` | AgentCore Runtime ARN | `arn:aws:bedrock-agentcore:...` (create after deploying the Runtime) |
 
 ### Via AWS Console
 
@@ -116,12 +110,7 @@ Parameters live under the `/aria/` prefix:
    - **Tier**: Standard
    - **Type**: String
    - **Value**: `us.anthropic.claude-sonnet-4-6`
-5. Create `/aria/runtime_arn`:
-   - **Name**: `/aria/runtime_arn`
-   - **Tier**: Standard
-   - **Type**: String
-   - **Value**: the Runtime ARN from Step 1 (e.g. `arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/aria-XXXXXXXX`)
-6. Click **Create parameter** for each
+5. Click **Create parameter** for each
 
 <details>
 <summary>Via CLI (Optional)</summary>
@@ -135,23 +124,7 @@ aws ssm put-parameter --name /aria/region --type String \
 
 aws ssm put-parameter --name /aria/model_id --type String \
   --value "us.anthropic.claude-sonnet-4-6" --overwrite --region "$AWS_REGION"
-
-aws ssm put-parameter --name /aria/runtime_arn --type String \
-  --value "$RUNTIME_ARN" --overwrite --region "$AWS_REGION"
 ```
-
-<details>
-<summary>Via helper script</summary>
-
-Run the provided `put_ssm_params.sh` script to create all parameters at once:
-
-```bash
-export RUNTIME_ARN="<your-runtime-arn>"
-export AWS_REGION=us-east-1
-bash aria-agent/scripts/put_ssm_params.sh
-```
-
-</details>
 
 </details>
 
@@ -180,19 +153,6 @@ aws bedrock list-inference-profiles \
 
 To update a parameter later: edit it in Parameter Store, then restart the
 Runtime — config is read once at cold start. No code change, no image rebuild.
-
-</details>
-
-<details>
-<summary>Local development (no SSM required)</summary>
-
-Set `SSM_ENABLED=false` to skip SSM entirely and use env vars instead:
-
-```bash
-export SSM_ENABLED=false
-export AWS_REGION=us-east-1
-# MODEL_ID has a built-in default
-```
 
 </details>
 
@@ -368,12 +328,12 @@ same role with `bedrock:Retrieve` when the Knowledge Base is introduced.
 
 ---
 
-## Step 5 — Build, Push, and Deploy to AgentCore Runtime
+## Step 5 — Build and Push the container image for the Agent
 
 This course uses **Docker** as the deployment method throughout. A Zip-based
 alternative is included in the collapsible section at the end of this step.
 
-#### 5a. Build and push the image
+#### Build and push the image
 
 You created the `aria-agent` ECR repository in Step 3. Now build the image and
 push it there:
@@ -407,7 +367,9 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 
 </details>
 
-#### 5b. Create the Runtime via AWS Console
+---
+
+## Step 6 — Create AgentCore Runtime and deploy Agent
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
 2. Configure:
@@ -423,7 +385,7 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 5. Note down the **Agent Runtime ARN**
 
 <details>
-<summary>5c. Create the Runtime via CLI (Optional)</summary>
+<summary>Create the Runtime via CLI (Optional)</summary>
 
 ```bash
 aws bedrock-agentcore control create-agent-runtime \
@@ -444,55 +406,9 @@ aws bedrock-agentcore control create-agent-runtime \
 
 </details>
 
-<details>
-<summary>Alternative — Deploy with Zip (no Docker required)</summary>
-
-The rest of this course assumes a Docker-based deployment. Use this Zip option
-only if you cannot use Docker; some later modules may reference container-specific
-steps you'll need to adapt.
-
-#### Via AWS Console
-
-1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime → Create agent runtime**
-2. Configure:
-   - **Agent runtime name**: `aria`
-   - **Deployment method**: Code (zip file)
-   - **Runtime**: Python 3.11
-   - **Entrypoint file**: `agent.py`
-3. Zip the `aria-agent/` folder contents and upload
-4. **Execution role**: select `AriaAgentExecutionRole`
-5. Click **Create agent runtime**
-6. Wait until status shows **Active**
-7. Note down the **Agent Runtime ARN**
-
-#### Via CLI (Optional)
-
-```bash
-cd aria-agent
-zip -r ../aria-agent.zip agent.py config.py requirements.txt
-cd ..
-
-aws bedrock-agentcore control create-agent-runtime \
-  --agent-runtime-name "aria" \
-  --agent-runtime-artifact '{
-    "codeArtifact": {
-      "runtimeArtifact": {
-        "s3Location": {
-          "uri": "s3://<YOUR_BUCKET>/aria-agent.zip"
-        }
-      }
-    }
-  }' \
-  --network-configuration '{"networkMode": "PUBLIC"}' \
-  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaAgentExecutionRole" \
-  --region us-east-1
-```
-
-</details>
-
 ---
 
-## Step 6 — Test with the Runtime console
+## Step 7 — Test with the Runtime console
 
 The quickest way to confirm the deployment works is the built-in Test tab:
 
@@ -527,8 +443,15 @@ or SSM parameter, restart the runtime so the new values take effect.
 </details>
 
 ---
+## Step 8 — Save AgentCore Runtime ARN to SSM Parameter Store
+This parameter will be used by our customer facing app (Streamlit) to know about the Agent deployed in AgentCore Runtime and app will invoke this agent.
 
-## Step 7 — Test with the Streamlit chat UI
+| SSM Parameter    | Purpose              | Value to set                     |
+|------------------|----------------------|----------------------------------|
+| `/aria/runtime_arn` | AgentCore Runtime ARN | `arn:aws:bedrock-agentcore:...` (create after deploying the Runtime) |
+
+---
+## Step 8 — Test with the Streamlit chat UI
 
 Now interact with the deployed agent through the ShopSmart chat UI — the same
 interface a customer would use.
