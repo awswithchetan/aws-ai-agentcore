@@ -1,13 +1,13 @@
 # Module 04 — Knowledge Base
 
-In Module 03 you deployed Aria on AgentCore Runtime, but her ShopSmart knowledge
+In Module 03 you deployed Aria on AgentCore Runtime, but it's ShopSmart knowledge
 is still hardcoded in the system prompt. In this module you externalize that
 knowledge into a managed **Bedrock Knowledge Base**, then rebuild and redeploy
 Aria so she retrieves answers from it instead of from inline prompt text.
 
 This is the first time you'll see the production iteration loop the rest of the
 course follows: **change the agent → rebuild the image → redeploy a new version
-to Runtime.** You deployed v1 in Module 03; here you deploy v2.
+to Runtime.** You deployed v1 in Module 03; here you deploy next version.
 
 Moving knowledge into documents is how production support agents actually work —
 content lives in files that non-engineers can update, not in prompts that require
@@ -32,7 +32,7 @@ Bedrock Knowledge Base
 ```
 
 Then you rebuild Aria's agent with a `retrieve_from_knowledge_base` tool and
-redeploy her to the Runtime you created in Module 03.
+redeploy it to the Runtime you created in previous Module.
 
 ---
 
@@ -133,9 +133,7 @@ aws s3 ls s3://shopsmart-knowledge-base-<your-account-id>/
 
 8. Note down the **Knowledge Base ID** — you will need it in Step 6.
 
----
-
-## Step 4 — Verify the Sync
+### Verify the Sync
 
 After creation, the Knowledge Base automatically syncs the data source:
 
@@ -145,7 +143,7 @@ After creation, the Knowledge Base automatically syncs the data source:
 
 ---
 
-## Step 5 — Test the Knowledge Base directly
+## Step 4 — Test the Knowledge Base directly
 
 Before wiring it into Aria, confirm the KB returns good results on its own:
 
@@ -158,36 +156,7 @@ Before wiring it into Aria, confirm the KB returns good results on its own:
 
 ---
 
-## Step 6 — Rebuild Aria to use the Knowledge Base
-
-Now connect the KB to the agent. The Module 04 agent snapshot adds a
-`retrieve_from_knowledge_base` tool and removes the ShopSmart FAQ block from the
-system prompt — Aria now looks answers up instead of reciting inline text.
-
-Copy the Module 04 snapshot into the deployment workspace:
-
-```bash
-cp modules/module-04-knowledge-base/agent.py aria-agent/agent.py
-cp modules/module-04-knowledge-base/config.py aria-agent/config.py
-cp modules/module-04-knowledge-base/requirements.txt aria-agent/requirements.txt
-cp modules/module-04-knowledge-base/Dockerfile aria-agent/Dockerfile
-```
-
-<details>
-<summary>What changed from the Module 03 agent</summary>
-
-- **New tool** `retrieve_from_knowledge_base(query)` calls `bedrock-agent-runtime`
-  `retrieve` against your KB and returns the matching chunks.
-- **`config.py`** now also loads `/aria/knowledge_base_id` and `/aria/kb_num_results`.
-- **System prompt** drops the hardcoded FAQ; Aria is told to use the KB tool for
-  policy, shipping, and payment questions.
-- The simulated order/product tools are unchanged — those become real in Module 05.
-
-</details>
-
----
-
-## Step 7 — Add Knowledge Base Configuration to SSM
+## Step 5 — Add Knowledge Base Configuration to SSM
 
 Add two parameters so the redeployed agent knows which KB to query. These sit
 alongside the `/aria/region` and `/aria/model_id` parameters from Module 03.
@@ -220,7 +189,7 @@ aws ssm put-parameter --name /aria/kb_num_results --type String \
 
 ---
 
-## Step 8 — Grant the Execution Role Permission to Query the Knowledge Base
+## Step 6 — Grant the Execution Role Permission to Query the Knowledge Base
 
 The `AriaAgentExecutionRole` (created in Module 03) can already read SSM. Add
 `bedrock:Retrieve` on your KB so the new tool can query it. Without this, the
@@ -285,10 +254,32 @@ points at a different KB, update the resource ARN accordingly.
 
 ---
 
-## Step 9 — Rebuild the Image and Redeploy (v2)
+## Step 7 — Rebuild the Image and Redeploy (next version)
 
-Rebuild the container with the KB-aware agent and push it to the same ECR
-repository, then point the Runtime at the new image.
+Rebuild the container with the KB-aware agent and push it to the same ECR repository, then point the Runtime at the new image.
+
+Copy this module code files into the deployment workspace:
+
+```bash
+cp modules/module-04-knowledge-base/agent.py aria-agent/agent.py
+cp modules/module-04-knowledge-base/config.py aria-agent/config.py
+cp modules/module-04-knowledge-base/requirements.txt aria-agent/requirements.txt
+cp modules/module-04-knowledge-base/Dockerfile aria-agent/Dockerfile
+```
+
+<details>
+<summary>What changed from the Module 03 agent</summary>
+
+- **New tool** `retrieve_from_knowledge_base(query)` calls `bedrock-agent-runtime`
+  `retrieve` against your KB and returns the matching chunks.
+- **`config.py`** now also loads `/aria/knowledge_base_id` and `/aria/kb_num_results`.
+- **System prompt** drops the hardcoded FAQ; Aria is told to use the KB tool for
+  policy, shipping, and payment questions.
+- The simulated order/product tools are unchanged — those become real in Module 05.
+
+</details>
+
+### Build and push the new image
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -340,7 +331,7 @@ aws bedrock-agentcore control update-agent-runtime \
 
 ---
 
-## Step 10 — Test the Knowledge-Grounded Agent
+## Step 8 — Test the Knowledge-Grounded Agent
 
 Use either the Runtime **Test** tab or the Streamlit UI from Module 03:
 
@@ -375,7 +366,7 @@ restart the runtime.
 
 ---
 
-## Step 11 — Verify the Answer Really Came from the Knowledge Base
+## Step 9 — Verify the Answer Really Came from the Knowledge Base
 
 Aria answers policy questions fluently — but how do you *know* the answer came
 from the Knowledge Base and not from the model's general knowledge? The
@@ -465,7 +456,7 @@ Aria is grounded in real documents now — but her orders, products, and returns
 are still make-believe: hardcoded sample data living inside `agent.py`. She can
 only "see" `ORD-1001` and a handful of demo products.
 
-That changes next. In **Module 05** you stand up the actual **ShopSmart
+That changes next. In next **Module** you stand up the actual **ShopSmart
 backend** — a REST API backed by Lambda and DynamoDB — and wire it to Aria
 through **AgentCore Gateway**. The Gateway reads the API's OpenAPI spec and
 exposes each operation as a tool the agent discovers automatically. No more
