@@ -19,7 +19,7 @@ modules replace each simulated piece with a managed capability:
   - "who is the customer?"      → Identity           (Module 07)
 
 Configuration (model, region) is loaded from SSM Parameter Store at startup
-(see config.py). Set SSM_ENABLED=false to run locally with env vars.
+(see config.py).
 """
 
 import logging
