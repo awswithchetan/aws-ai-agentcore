@@ -499,21 +499,49 @@ docker tag aria-agent:latest $ECR_REPO:latest
 docker push $ECR_REPO:latest
 cd ..
 
-RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
-  --region $AWS_REGION \
+```
+
+<details>
+<summary>Note on linux/arm64</summary>
+
+AgentCore Runtime microVM only supports arm64. If your machine is amd64 (Intel/AMD),
+install QEMU once to enable cross-platform builds:
+
+```bash
+docker run --privileged --rm tonistiigi/binfmt --install arm64
+```
+
+</details>
+
+Then roll the Runtime onto the new image:
+
+### Via AWS Console
+
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime**
+2. Select `aria` and choose **Update** (or **Edit**) - If your image tag is the same (latest) then you can simply update the description.
+3. Confirm the **Image URI** is `<your-ecr-repo-uri>:latest` and save
+4. Wait until status returns to **Active**
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+```bash
+export RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
+  --region "$AWS_REGION" \
   --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
   --output text)
 
-aws bedrock-agentcore-control update-agent-runtime \
-  --agent-runtime-id $RUNTIME_ID \
-  --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
-  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
-  --network-configuration '{"networkMode":"PUBLIC"}' \
-  --description "Module 05 — Gateway tools" \
-  --region $AWS_REGION
+aws bedrock-agentcore control update-agent-runtime \
+  --agent-runtime-id "$RUNTIME_ID" \
+  --agent-runtime-artifact "{
+    \"containerArtifact\": {
+      \"containerImage\": { \"uri\": \"$ECR_REPO:latest\" }
+    }
+  }" \
+  --region "$AWS_REGION"
 ```
 
-Wait for the runtime status to return to **Ready**.
+</details>
 
 ---
 
