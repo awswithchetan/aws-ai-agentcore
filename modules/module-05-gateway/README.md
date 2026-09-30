@@ -61,7 +61,7 @@ authenticates the Runtime-to-Gateway connection.
 
 1. Go to **AWS Console → S3 → Create bucket**
 2. Configure:
-   - **Bucket name**: `shopsmart-knowledge-base-<your-account-id>` *(must be globally unique)*
+   - **Bucket name**: `shopsmart-lambda-<your-account-id>` *(must be globally unique)*
    - **Region**: `us-east-1`
    - **Block all public access**: enabled (default)
    - All other settings: leave as default
