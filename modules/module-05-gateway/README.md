@@ -82,6 +82,10 @@ aws s3 mb s3://$BUCKET --region $AWS_REGION
 ### 1b. Package and upload Lambda code
 
 ```bash
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export BUCKET=shopsmart-lambda-$AWS_ACCOUNT_ID
+
 cd shopsmart-backend/lambdas
 for f in list_orders get_order get_product search_products submit_request; do
   zip ${f}.zip ${f}.py
