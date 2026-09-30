@@ -1,9 +1,9 @@
 # Module 06 — Memory: Stateful Agents
 
-In this module you will add persistent memory to Aria so she remembers
+In this module you will add persistent memory to Aria agent so it remembers
 customers across sessions. After this module, Aria can greet returning
 customers by name, recall their past issues, and personalise responses
-using facts she has learned over time.
+using facts it has learned over time.
 
 > **Note:** In this module the customer identifies themselves with a Customer ID
 > typed into the sidebar, which is trusted as-is. This keeps the focus on memory
