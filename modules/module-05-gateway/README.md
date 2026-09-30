@@ -330,7 +330,40 @@ aws iam put-role-policy \
 
 ---
 
-## Step 4 — Grant the Agent Permission to Invoke the Gateway
+## Step 4 — Save the Gateway Endpoint to SSM
+
+Store the Gateway Resource URL from Step 3 in SSM so the agent can read it at
+startup (the same pattern used for the other `/aria/` parameters).
+
+### Via AWS Console
+
+1. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
+2. Configure:
+   - **Name**: `/aria/gateway_endpoint`
+   - **Tier**: Standard
+   - **Type**: String
+   - **Value**: your Gateway Resource URL from Step 3
+3. Click **Create parameter**
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+```bash
+export GATEWAY_ENDPOINT=<your-gateway-endpoint-url>
+
+aws ssm put-parameter \
+  --name /aria/gateway_endpoint \
+  --value "$GATEWAY_ENDPOINT" \
+  --type String \
+  --overwrite \
+  --region $AWS_REGION
+```
+
+</details>
+
+---
+
+## Step 5 — Grant the Agent Permission to Invoke the Gateway
 
 The agent runs inside AgentCore Runtime using `AriaAgentExecutionRole`. That
 role needs `bedrock-agentcore:InvokeGateway` permission on the Gateway,
@@ -384,39 +417,6 @@ aws iam put-role-policy \
       \"Resource\": \"${GATEWAY_ARN}\"
     }]
   }"
-```
-
-</details>
-
----
-
-## Step 5 — Save the Gateway Endpoint to SSM
-
-Store the Gateway Resource URL from Step 3 in SSM so the agent can read it at
-startup (the same pattern used for the other `/aria/` parameters).
-
-### Via AWS Console
-
-1. Go to **AWS Console → Systems Manager → Parameter Store → Create parameter**
-2. Configure:
-   - **Name**: `/aria/gateway_endpoint`
-   - **Tier**: Standard
-   - **Type**: String
-   - **Value**: your Gateway Resource URL from Step 3
-3. Click **Create parameter**
-
-<details>
-<summary>Via CLI (Optional)</summary>
-
-```bash
-export GATEWAY_ENDPOINT=<your-gateway-endpoint-url>
-
-aws ssm put-parameter \
-  --name /aria/gateway_endpoint \
-  --value "$GATEWAY_ENDPOINT" \
-  --type String \
-  --overwrite \
-  --region $AWS_REGION
 ```
 
 </details>
