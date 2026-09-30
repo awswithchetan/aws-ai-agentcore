@@ -97,7 +97,7 @@ no namespace paths need to be hardcoded in application code.
 
 8. Wait for the status to reach **Active** (takes about 1–2 minutes)
 
-9. Note the **Memory ID** — it looks like `mem-XXXXXXXXXX`
+9. Note the **Memory ID**  and **Memory Strategy ID**
 
 <details>
 <summary>About strategy types</summary>
@@ -136,14 +136,54 @@ aws bedrock-agentcore-control create-memory \
   --memory-strategies '[{"semanticMemoryStrategy": {"name": "aria_semantic"}}]' \
   --region us-east-1
 ```
-
-Note the **Memory ID** from the command output — you will need it in Step 3.
-
 </details>
 
 ---
 
-## Step 2 — Grant the Aria Agent Execution Role Permission to Use Memory
+## Step 2 — Add memory_id and memory_strategy_id to SSM
+
+Get your Strategy ID from the AWS console or run the following CLI command:
+
+```bash
+aws bedrock-agentcore-control get-memory \
+  --memory-id <YOUR_MEMORY_ID> \
+  --region us-east-1 \
+  --query "memory.strategies[*].{id:strategyId,type:type}" \
+  --output table
+```
+
+### Via AWS Console
+
+Create two parameters in **Systems Manager → Parameter Store**:
+
+| Name | Value |
+|---|---|
+| `/aria/memory_id` | your Memory ID (e.g. `aria_memory-XXXXXXXXXX`) |
+| `/aria/memory_strategy_id` | your Strategy ID (e.g. `semantic_builtin_XXXXX-XXXXXXXXXX`) |
+
+<details>
+<summary>Via CLI</summary>
+
+`put_ssm_params.sh` requires `KNOWLEDGE_BASE_ID` and re-writes the
+`knowledge_base_id` parameter on every run, so export your existing KB ID
+alongside the memory variables. `gateway_endpoint` is managed separately and
+is left untouched by this script.
+
+```bash
+export KNOWLEDGE_BASE_ID=<your-existing-kb-id>
+export MEMORY_ID=<your-memory-id>
+export MEMORY_STRATEGY_ID=<your-strategy-id>
+
+KNOWLEDGE_BASE_ID=$KNOWLEDGE_BASE_ID \
+MEMORY_ID=$MEMORY_ID \
+MEMORY_STRATEGY_ID=$MEMORY_STRATEGY_ID \
+bash aria-agent/scripts/put_ssm_params.sh
+```
+
+</details>
+
+---
+## Step 3 — Grant the Aria Agent Execution Role Permission to Use Memory
 
 ### Via AWS Console
 
@@ -198,59 +238,6 @@ aws iam put-role-policy \
       \"Resource\": \"arn:aws:bedrock-agentcore:${AWS_REGION}:${AWS_ACCOUNT_ID}:memory/${MEMORY_ID}\"
     }]
   }"
-```
-
-</details>
-
----
-
-## Step 3 — Add memory_id and memory_strategy_id to SSM
-
-Get your Strategy ID:
-
-```bash
-aws bedrock-agentcore-control get-memory \
-  --memory-id <YOUR_MEMORY_ID> \
-  --region us-east-1 \
-  --query "memory.strategies[*].{id:strategyId,type:type}" \
-  --output table
-```
-
-<details>
-<summary>Where to find the Strategy ID in the Console</summary>
-
-The **Strategy ID** is shown on the Memory resource detail page under
-**Long-term memory extraction strategies**. It looks like
-`semantic_builtin_XXXXX-XXXXXXXXXX`.
-
-</details>
-
-### Via AWS Console
-
-Create two parameters in **Systems Manager → Parameter Store**:
-
-| Name | Value |
-|---|---|
-| `/aria/memory_id` | your Memory ID (e.g. `aria_memory-XXXXXXXXXX`) |
-| `/aria/memory_strategy_id` | your Strategy ID (e.g. `semantic_builtin_XXXXX-XXXXXXXXXX`) |
-
-<details>
-<summary>Via CLI</summary>
-
-`put_ssm_params.sh` requires `KNOWLEDGE_BASE_ID` and re-writes the
-`knowledge_base_id` parameter on every run, so export your existing KB ID
-alongside the memory variables. `gateway_endpoint` is managed separately and
-is left untouched by this script.
-
-```bash
-export KNOWLEDGE_BASE_ID=<your-existing-kb-id>
-export MEMORY_ID=<your-memory-id>
-export MEMORY_STRATEGY_ID=<your-strategy-id>
-
-KNOWLEDGE_BASE_ID=$KNOWLEDGE_BASE_ID \
-MEMORY_ID=$MEMORY_ID \
-MEMORY_STRATEGY_ID=$MEMORY_STRATEGY_ID \
-bash aria-agent/scripts/put_ssm_params.sh
 ```
 
 </details>
@@ -353,18 +340,49 @@ docker build --platform linux/arm64 -t aria-agent .
 docker tag aria-agent:latest $ECR_REPO:latest
 docker push $ECR_REPO:latest
 cd ..
+```
+<details>
+<summary>Note on linux/arm64</summary>
 
-# Update the runtime to use the new image
-aws bedrock-agentcore control update-agent-runtime \
-  --agent-runtime-id <YOUR_RUNTIME_ID> \
-  --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
-  --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
-  --network-configuration '{"networkMode":"PUBLIC"}' \
-  --description "Module 06 — Memory" \
-  --region us-east-1
+AgentCore Runtime microVM only supports arm64. If your machine is amd64 (Intel/AMD),
+install QEMU once to enable cross-platform builds:
+
+```bash
+docker run --privileged --rm tonistiigi/binfmt --install arm64
 ```
 
-Wait for the runtime status to return to **Ready** before testing.
+</details>
+
+Then roll the Runtime onto the new image:
+
+### Via AWS Console
+
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime**
+2. Select `aria` and choose **Update** (or **Edit**) - If your image tag is the same (latest) then you can simply update the description.
+3. Confirm the **Image URI** is `<your-ecr-repo-uri>:latest` and save
+4. Wait until status returns to **Active**
+
+<details>
+<summary>Via CLI (Optional)</summary>
+
+```bash
+export RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
+  --region "$AWS_REGION" \
+  --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
+  --output text)
+
+aws bedrock-agentcore control update-agent-runtime \
+  --agent-runtime-id "$RUNTIME_ID" \
+  --agent-runtime-artifact "{
+    \"containerArtifact\": {
+      \"containerImage\": { \"uri\": \"$ECR_REPO:latest\" }
+    }
+  }" \
+  --region "$AWS_REGION"
+```
+
+</details>
+
 
 ---
 
