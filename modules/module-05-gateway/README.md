@@ -57,6 +57,19 @@ authenticates the Runtime-to-Gateway connection.
 
 ### 1a. Create an S3 bucket for Lambda deployment packages
 
+### Via AWS Console
+
+1. Go to **AWS Console → S3 → Create bucket**
+2. Configure:
+   - **Bucket name**: `shopsmart-knowledge-base-<your-account-id>` *(must be globally unique)*
+   - **Region**: `us-east-1`
+   - **Block all public access**: enabled (default)
+   - All other settings: leave as default
+3. Click **Create bucket**
+
+<details>
+<summary>Via CLI (Optional)</summary>
+    
 ```bash
 export AWS_REGION=us-east-1
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -64,6 +77,7 @@ export BUCKET=shopsmart-lambda-$AWS_ACCOUNT_ID
 
 aws s3 mb s3://$BUCKET --region $AWS_REGION
 ```
+</details>
 
 ### 1b. Package and upload Lambda code
 
