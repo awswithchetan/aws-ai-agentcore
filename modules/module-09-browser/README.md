@@ -23,6 +23,7 @@ Customer → Streamlit → Aria Runtime
                          ├── Gateway → ShopSmart API → DynamoDB
                          └── AgentCore Browser → CloudFront → private S3 site
                                    └── screenshot → private S3 bucket → presigned link
+                     → Load screenshot image in the chat
 ```
 
 By the end, Aria can answer questions such as:
@@ -74,7 +75,44 @@ echo "$CARRIER_BUCKET"
 echo "$CARRIER_URL"
 ```
 
-### Create a bucket for Browser screenshots
+## Step 2 — Upload the mock carrier site
+
+Upload the three static files. `--delete` removes stale objects in this
+course-only bucket; do not use it if the bucket contains unrelated content.
+
+```bash
+aws s3 sync modules/module-09-browser/site/ "s3://$CARRIER_BUCKET/" \
+  --delete --region "$AWS_REGION" \
+  --cache-control "no-cache, max-age=0"
+```
+
+CloudFront may still serve an earlier object briefly because of caching. For a
+course deployment, wait a minute or create an invalidation:
+
+```bash
+DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+  --stack-name shopsmart-carrier-browser \
+  --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+  --output text --region "$AWS_REGION")
+
+aws cloudfront create-invalidation \
+  --distribution-id "$DISTRIBUTION_ID" \
+  --paths '/*'
+```
+
+Open `$CARRIER_URL` in a browser and try these fictional values:
+
+| Tracking number | Expected status |
+|---|---|
+| `UPS1234567890` | In transit |
+| `FDX9876543210` | Out for delivery |
+| `UPS0011223344` | Delivered |
+
+The page is deliberately deterministic. It does not call a real carrier API
+and contains no customer data.
+
+
+## Step 3 — Create a bucket for Browser screenshots
 
 Create a separate, private bucket where Aria stores the screenshots it captures
 during a tracking lookup — kept distinct from the carrier site bucket.
@@ -116,43 +154,8 @@ echo "$SCREENSHOT_BUCKET"
 > private object and returns a short-lived presigned URL so only the current
 > customer can open that one screenshot.
 
-## Step 2 — Upload the mock carrier site
 
-Upload the three static files. `--delete` removes stale objects in this
-course-only bucket; do not use it if the bucket contains unrelated content.
-
-```bash
-aws s3 sync modules/module-09-browser/site/ "s3://$CARRIER_BUCKET/" \
-  --delete --region "$AWS_REGION" \
-  --cache-control "no-cache, max-age=0"
-```
-
-CloudFront may still serve an earlier object briefly because of caching. For a
-course deployment, wait a minute or create an invalidation:
-
-```bash
-DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
-  --stack-name shopsmart-carrier-browser \
-  --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
-  --output text --region "$AWS_REGION")
-
-aws cloudfront create-invalidation \
-  --distribution-id "$DISTRIBUTION_ID" \
-  --paths '/*'
-```
-
-Open `$CARRIER_URL` in a browser and try these fictional values:
-
-| Tracking number | Expected status |
-|---|---|
-| `UPS1234567890` | In transit |
-| `FDX9876543210` | Out for delivery |
-| `UPS0011223344` | Delivered |
-
-The page is deliberately deterministic. It does not call a real carrier API
-and contains no customer data.
-
-## Step 3 — Configure Aria
+## Step 4 — Add parameters in SSM Parameter Store
 
 Aria loads all of its configuration from the `/aria/` SSM parameter prefix
 (model ID, knowledge base ID, gateway endpoint, memory ID, and so on). Add the
@@ -198,7 +201,7 @@ aws ssm put-parameter \
 
 </details>
 
-## Step 4 — Grant AgentCore Browser permissions
+## Step 5 — Grant AgentCore Browser permissions
 
 Grant the Aria Runtime execution role permission to use AgentCore Browser. Do
 this first — the container needs these permissions to start Browser sessions at
@@ -291,7 +294,7 @@ aws iam put-role-policy \
 
 </details>
 
-## Step 5 — Add Browser dependencies and tool code
+## Step 6 — Update agent code to use Browser tool
 
 Unlike Gateway tools — which the agent discovers automatically over MCP — the
 Browser capability is code you write and package into the agent. The managed
@@ -310,29 +313,7 @@ cp modules/module-09-browser/requirements.txt aria-agent/requirements.txt
 cp modules/module-09-browser/tools/browser.py aria-agent/tools/browser.py
 ```
 
-The Browser module files are provided here:
-
-- `agent.py` registers `check_carrier_tracking` alongside the Knowledge Base and
-  Gateway tools.
-- `config.py` loads `/aria/carrier_tracking_url` and `/aria/screenshot_bucket`.
-- `tools/browser.py` starts an AgentCore Browser session, connects Playwright
-  over CDP, navigates to the CloudFront page, extracts the tracking result,
-  captures a screenshot of the page, uploads it to the private screenshot
-  bucket, and returns a presigned link alongside the tracking details.
-- `requirements.txt` adds `playwright==1.52.0`.
-- `Dockerfile` packages the Browser-enabled agent.
-
-Verify the copied files:
-
-```bash
-ls aria-agent/tools/browser.py \
-   aria-agent/agent.py \
-   aria-agent/config.py \
-   aria-agent/Dockerfile \
-   aria-agent/requirements.txt
-```
-
-## Step 6 — Build and deploy the Browser-enabled Runtime
+## Step 7 — Build and deploy the Browser-enabled Runtime
 
 Rebuild and push the image, then update the `aria` Runtime:
 
@@ -408,7 +389,7 @@ execution role must include the AgentCore Browser permissions from Step 4, and
 the `/aria/carrier_tracking_url` and `/aria/screenshot_bucket` parameters must
 be present before the container starts.
 
-## Step 7 — Test the end-to-end flow
+## Step 8 — Test the end-to-end flow
 
 > **No Streamlit changes are needed for this module.** All the new behavior
 > lives in the agent (the Browser tool and system prompt) running in the Runtime
