@@ -29,7 +29,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: "shopsmart-carrier-oac"
+        Name: !Sub "${AWS::StackName}-carrier-oac"
         Description: Allow the ShopSmart CloudFront distribution to read the private carrier site bucket
         OriginAccessControlOriginType: s3
         SigningBehavior: always

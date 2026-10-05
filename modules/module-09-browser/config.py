@@ -15,6 +15,7 @@ SSM Parameters (all under /aria/):
   /aria/cognito_client_id     — NEW: Cognito App Client ID (for Streamlit UI)
   /aria/cognito_domain        — NEW: Cognito hosted UI domain (for Streamlit UI)
   /aria/carrier_tracking_url  — NEW: CloudFront URL for the simulated carrier website
+  /aria/screenshot_bucket     — NEW: Private S3 bucket for Browser page screenshots
 
 Note: The agent itself does not need Cognito parameters at runtime — the JWT is
 validated by the AgentCore Runtime before the agent code runs. The carrier URL
@@ -43,6 +44,7 @@ _DEFAULTS = {
     "cognito_client_id": "",
     "cognito_domain": "",
     "carrier_tracking_url": "",
+    "screenshot_bucket": "",
 }
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -109,6 +111,8 @@ class AgentConfig:
         self.cognito_client_id: str = _resolve("cognito_client_id", ssm)
         self.cognito_domain: str = _resolve("cognito_domain", ssm).rstrip("/")
         self.carrier_tracking_url: str = _resolve("carrier_tracking_url", ssm).rstrip("/")
+        # Private S3 bucket where the Browser tool stores page screenshots.
+        self.screenshot_bucket: str = _resolve("screenshot_bucket", ssm)
 
         self._validate()
 
@@ -129,6 +133,7 @@ class AgentConfig:
             ("cognito_client_id", self.cognito_client_id),
             ("cognito_domain", self.cognito_domain),
             ("carrier_tracking_url", self.carrier_tracking_url),
+            ("screenshot_bucket", self.screenshot_bucket),
         ]:
             if not value:
                 logger.warning("Configuration warning: '%s' is not set.", name)
