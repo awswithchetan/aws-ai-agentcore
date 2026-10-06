@@ -11,8 +11,7 @@ mental model for everything you build in the rest of the course.
 
 ## Why AgentCore
 
-Getting an AI agent to *work* on your laptop is relatively easy — you saw that
-in Module 02. Getting one to run reliably in production is the hard part:
+Getting an AI agent to *work* on your laptop is relatively easy but getting one to run reliably in production is the hard part:
 hosting and scaling it, connecting it to real tools securely, giving it memory,
 authenticating users, enforcing guardrails, and observing what it does.
 
