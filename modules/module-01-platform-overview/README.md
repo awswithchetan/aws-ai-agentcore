@@ -41,6 +41,10 @@ production-grade agent.
 
 ---
 
+## The Architecture that you are going to build in this course
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/fa4a86be-0be4-4043-8f05-4203e4ac4ad4" />
+
+
 ## How the course is structured
 
 The course builds **one** agent incrementally. Rather than a collection of
