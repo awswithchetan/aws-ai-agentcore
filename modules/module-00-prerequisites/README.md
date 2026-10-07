@@ -15,7 +15,7 @@ create AWS resources, IAM users, AgentCore resources, or course infrastructure.
 
 ## Prerequisites
 
-### 1. AWS account
+### 1. AWS account and IAM User permissions
 
 You need an AWS account with permission to use Amazon Bedrock AgentCore and to
 create the course resources. The course creates CloudFormation stacks, Lambda
@@ -31,14 +31,14 @@ What your identity needs:
 - **Permission to access Bedrock Marketplace models.** Anthropic Claude and some
   other Bedrock models are offered through **Amazon Bedrock Marketplace**, which
   is gated by a separate managed policy.
-- **No committed credentials.** Never commit access keys or place them in the
-  repository.
+- This policy is only needed for Marketplace models such as Anthropic Claude. If you instead use Amazon-provided models (e.g. Amazon Nova Lite),
+  you can skip AmazonBedrockMarketplaceAccess. Keep in mind that the course codebase by default uses an Anthropic model — if you switch, update the model ID
+  accordingly during implementation.
+- Never commit access keys or place them in the repository.
 
-Your IAM user (or role) should therefore have both `AdministratorAccess` and
-`AmazonBedrockMarketplaceAccess` attached, as shown below:
+IAM user (or role) having both `AdministratorAccess` and `AmazonBedrockMarketplaceAccess` attached, as shown below:
 
-<!-- TODO: add screenshot of IAM user with AdministratorAccess and AmazonBedrockMarketplaceAccess policies attached -->
-
+<img width="1203" height="270" alt="image" src="https://github.com/user-attachments/assets/e0046aa4-f81b-4067-a95a-ee078d9a8ca4" />
 
 ### 2. Local workstation
 
