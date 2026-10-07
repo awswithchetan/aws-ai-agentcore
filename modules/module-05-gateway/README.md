@@ -51,6 +51,9 @@ authenticates the Runtime-to-Gateway connection.
 
 </details>
 
+## Module Architecture
+<img width="1152" height="648" alt="image" src="https://github.com/user-attachments/assets/f1b066b1-6155-4e96-85b3-e6d1eba3ed6d" />
+
 ---
 
 ## Step 1 — Deploy the ShopSmart Backend
