@@ -27,6 +27,9 @@ with a real Knowledge Base in Module 04.
 | Tools | Simulated (hardcoded data) | **Still simulated** — unchanged |
 | FAQ knowledge | Inline in system prompt | **Still inline** — unchanged |
 
+## Module Architecture
+<img width="1152" height="648" alt="image" src="https://github.com/user-attachments/assets/617c3ac6-7463-4180-bcc7-ebb61b8d8e2e" />
+
 ---
 ## Step 1 — Create the ECR Repository
 
