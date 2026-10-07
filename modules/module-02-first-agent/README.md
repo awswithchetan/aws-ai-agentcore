@@ -44,7 +44,7 @@ Several pieces here are deliberately simulated or inlined; each one becomes a
 real, managed AgentCore capability in a later module. There's a recap mapping
 every piece to its module in the [recap at the end](#recap-simulate-now-make-it-real-later).
 
-## Architecture
+## Module Architecture
 <img width="1152" height="648" alt="image" src="https://github.com/user-attachments/assets/af954e85-fda1-4262-a364-8734e0920978" />
 
 ---
