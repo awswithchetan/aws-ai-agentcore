@@ -146,12 +146,22 @@ install_aws_cli_linux() {
   log "Installing AWS CLI v2"
   local tmp_dir
   tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "$tmp_dir"' RETURN
 
-  curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip \
-    -o "$tmp_dir/awscliv2.zip" || return 1
-  unzip -q "$tmp_dir/awscliv2.zip" -d "$tmp_dir" || return 1
+  if ! curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip \
+      -o "$tmp_dir/awscliv2.zip"; then
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  if ! unzip -q "$tmp_dir/awscliv2.zip" -d "$tmp_dir"; then
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
   sudo "$tmp_dir/aws/install" --update
+  local status=$?
+  rm -rf "$tmp_dir"
+  return "$status"
 }
 
 create_python_environment() {
