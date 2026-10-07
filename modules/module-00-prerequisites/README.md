@@ -262,20 +262,21 @@ Module 03 and later container deployment instructions require it.
 | Git | Yes | ☐ |
 | VS Code | Recommended | ☐ |
 
-## Troubleshooting
+<details>
+<summary>Troubleshooting</summary>
 
-### `aws sts get-caller-identity` fails
+1. **aws sts get-caller-identity** fails
 
 Run `aws configure`, confirm the selected profile with
 `echo "$AWS_PROFILE"`, and verify the credentials belong to the intended AWS
 account.
 
-### Docker permission denied on Linux
+2. **Docker permission denied on Linux**
 
 Run `newgrp docker`, start the service with `sudo systemctl start docker`, or
 log out and back in after the installer adds your user to the Docker group.
 
-### Docker `exec format error` during an ARM64 build
+3. **Docker `exec format error` during an ARM64 build**
 
 Register binfmt/QEMU and bootstrap Buildx:
 
@@ -284,7 +285,7 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 docker buildx inspect --bootstrap
 ```
 
-### Python dependency installation fails
+4. **Python dependency installation fails**
 
 Confirm Python is 3.11+, upgrade pip, and rerun the installer from the
 repository root:
@@ -293,6 +294,7 @@ repository root:
 python -m pip install --upgrade pip
 bash modules/module-00-prerequisites/install-prerequisites.sh
 ```
+</details>
 
 ## Next step
 
