@@ -138,7 +138,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## Step 4 — Configure AWS CLI access
+## Step 4 — AWS IAM User and CLI
 
 If you already have working AWS credentials, verify them first:
 
@@ -177,19 +177,41 @@ The course uses Anthropic Claude through Amazon Bedrock. Model availability and 
 
 1. Open the **Amazon Bedrock** console for your AWS region.
 2. Open **Model catalog** and locate the Claude model used by the course.
-3. Complete any first-time-use or model-access request shown by the console.
+3. **Complete any first-time-use or model-access request shown by the console.**
+
+<img width="1250" height="422" alt="claude-form" src="https://github.com/user-attachments/assets/c14f18e7-e562-4d71-9620-d30cbaedb538" />
+
 4. Confirm your identity can list foundation models:
 
 ```bash
-aws bedrock list-foundation-models \
-  --region "$AWS_REGION" \
-  --query "modelSummaries[?contains(modelId,'claude')].[modelId,providerName]" \
-  --output table
+  aws bedrock list-foundation-models \
+    --region "$AWS_REGION" \
+    --query "modelSummaries[?contains(modelId,'claude')].[modelId,providerName]" \
+    --output table
 ```
+Sample output (truncated):
+
+<img width="586" height="217" alt="image" src="https://github.com/user-attachments/assets/2cfd3696-8af1-4d9d-840e-f931c54924a3" />
 
 A successful command confirms API access. It does not guarantee that every specific model invocation is permitted; test the selected model when you reach
 Module 02.
 
+5. Confirm that you can get the list of model Inference Profile IDs which are required for the model cross-region use.
+
+```bash
+    aws bedrock list-inference-profiles \
+      --region "$AWS_REGION" \
+      --type-equals SYSTEM_DEFINED \
+      --query "inferenceProfileSummaries[?contains(inferenceProfileId,'claude')].inferenceProfileId" \
+      --output table
+  ```
+Sample output (truncated):
+
+<img width="637" height="207" alt="image" src="https://github.com/user-attachments/assets/95d2db07-c83a-4d4b-82dd-4b3aeae56d60" />
+
+In the Module-02, you will need to configure the Model ID from this list. We will use region specific inference profile id e.g. us.anthropic.claude-sonnet-4-6
+
+---
 ## Step 6 — Verify the complete setup
 
 Run this checklist from the activated virtual environment:
