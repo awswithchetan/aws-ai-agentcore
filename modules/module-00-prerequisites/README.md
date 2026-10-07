@@ -72,6 +72,42 @@ The installer checks or installs:
 - `curl`, `awscurl`, `zip`, `unzip`, and `jq`
 - Course Python dependencies, including Boto3, Streamlit, and AgentCore SDKs
 
+The installer handles all of these except **git**, which you need beforehand to
+clone this repository. If `git --version` works, you're set — otherwise install
+it first using the steps below.
+
+<details>
+<summary>Install Git (if it is not already installed)</summary>
+
+**Linux — Debian/Ubuntu:**
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git
+```
+
+**Linux — Amazon Linux/RHEL/Fedora:**
+
+```bash
+sudo dnf install -y git   # or: sudo yum install -y git
+```
+
+**macOS** (installs the Xcode Command Line Tools, which include Git):
+
+```bash
+xcode-select --install
+```
+
+Alternatively, if you use [Homebrew](https://brew.sh): `brew install git`.
+
+Verify the installation:
+
+```bash
+git --version
+```
+
+</details>
+
 ## Step 1 — Clone the repository
 
 Clone the repository and enter its root directory:
