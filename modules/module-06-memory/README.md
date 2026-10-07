@@ -67,6 +67,9 @@ no namespace paths need to be hardcoded in application code.
 
 </details>
 
+## Module Architecture
+<img width="1152" height="648" alt="image" src="https://github.com/user-attachments/assets/9f81460e-94b5-4131-8e55-14875ff29523" />
+
 ---
 
 ## Step 1 — Create the AgentCore Memory Resource
