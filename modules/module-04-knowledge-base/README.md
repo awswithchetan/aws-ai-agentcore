@@ -48,6 +48,9 @@ The documents are already in the repo at `shopsmart-backend/knowledge-base/`. Yo
 | `store-hours-and-support.md` | Support channels, hours, escalation |
 | `general-faq.md` | Orders, account, products, pricing, loyalty, privacy |
 
+## Module Architecture
+<img width="1152" height="648" alt="image" src="https://github.com/user-attachments/assets/07b375d0-5b7a-423d-bba6-fe22aed9299f" />
+
 ---
 
 ## Step 1 — Create S3 Bucket
