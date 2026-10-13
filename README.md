@@ -1,4 +1,11 @@
-# Building Production-Grade AI Agents with Amazon Bedrock AgentCore
+# Building Production-ready AI Agents on AWS with Amazon Bedrock AgentCore
+
+This repo is a part of my course on Udemy where I have explained the architecture in detail and demonstrated complete deployment process for building AI Agent from scratch.
+
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
+<img width="1920" height="1080" alt="course-title-udemy-2" src="https://github.com/user-attachments/assets/fbbd3a0a-8738-4c97-8297-7ab1538699a8" />
+
 
 ## Course Overview
 
@@ -7,6 +14,7 @@ A hands-on course covering all major Amazon Bedrock AgentCore capabilities by bu
 Each module adds a new capability to Aria, so by the end of the course you have one complete, production-ready agent built incrementally — not a collection of isolated demos.
 
 **Author**: [Chetan Agrawal](https://in.linkedin.com/in/chetan-agrawal-30107310)  
+
 **Website**: [www.awswithchetan.com](https://www.awswithchetan.com)
 
 ---
