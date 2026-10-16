@@ -1,5 +1,7 @@
 # Module 08 — Policy: Guardrails & Governance
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 In this module you will add **deterministic guardrails** to Aria using
 **Amazon Bedrock AgentCore Policy**. Instead of relying on the LLM to
 self-enforce business rules (which can be bypassed through prompt injection or
