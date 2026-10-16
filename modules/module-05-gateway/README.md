@@ -1,5 +1,7 @@
 # Module 05 — Gateway: Connecting Real Tools
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 In this module you will connect Aria to the ShopSmart backend — the ShopSmart
 REST API, backed by Lambda functions and DynamoDB. Until now Aria's order,
 product, and return tools have been **simulated** (hardcoded sample data in
