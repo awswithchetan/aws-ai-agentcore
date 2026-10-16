@@ -1,5 +1,7 @@
 # Module 07 — Identity: Auth Done Right
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 In this module you will add real customer authentication. Instead of the
 manual Customer ID text input from Module 06 — where anyone could type any ID
 and see that customer's data — customers now log in via Amazon Cognito. The
