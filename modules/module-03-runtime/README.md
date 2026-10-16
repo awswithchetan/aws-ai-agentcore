@@ -1,5 +1,7 @@
 # Module 03 — Runtime
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 In Module 02 you built Aria as a self-contained Strands agent and ran her in your
 terminal. In this module you deploy that **same agent** onto Amazon Bedrock
 AgentCore Runtime.
