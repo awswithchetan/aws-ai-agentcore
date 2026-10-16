@@ -87,6 +87,10 @@ aws-ai-agentcore/
 
 ---
 
+## Cost of implementation - AWS Usage
+**Approx $1.5 to 2** 
+<img width="979" height="562" alt="image" src="https://github.com/user-attachments/assets/23a34008-ffe4-462b-98c7-c768f1f3b48f" />
+
 ## Prerequisites
 
 The module folders are the source of truth for the progressive agent snapshots. `aria-agent/` is the active/generated deployment workspace: each Runtime module copies its `agent.py`, `config.py`, `requirements.txt`, and `Dockerfile` into that directory before building or packaging. Module 08 is policy-only and does not provide a new agent snapshot.
