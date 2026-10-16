@@ -1,5 +1,7 @@
 # Module 10 — Cleanup: Remove Course Resources
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 This final module removes the AWS resources created throughout the ShopSmart
 course. Deletion is intentionally destructive: it can permanently remove data,
 users, agent resources, and stored container images.
