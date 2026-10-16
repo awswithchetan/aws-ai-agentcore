@@ -1,5 +1,7 @@
 # Module 04 — Knowledge Base
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 In Module 03 you deployed Aria on AgentCore Runtime, but it's ShopSmart knowledge
 is still hardcoded in the system prompt. In this module you externalize that
 knowledge into a managed **Bedrock Knowledge Base**, then rebuild and redeploy
