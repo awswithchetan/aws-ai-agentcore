@@ -1,5 +1,9 @@
 # Module 00 — Prerequisites
 
+This repo is a part of my course on Udemy where I have explained the architecture in detail and demonstrated complete deployment process for building AI Agent from scratch.
+
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 ## Overview
 
 This module prepares your local workstation and AWS account before you build
