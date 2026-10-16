@@ -1,5 +1,7 @@
 # Module 01 — AgentCore Platform Overview
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 This module is a conceptual walkthrough of the **Amazon Bedrock AgentCore**
 platform. There are no hands-on steps and nothing to deploy — it sets the
 mental model for everything you build in the rest of the course.
