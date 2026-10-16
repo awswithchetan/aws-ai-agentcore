@@ -1,5 +1,7 @@
 # Module 02 — Your First Agent
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 In this module you build the first version of **Aria**, ShopSmart's AI customer
 support agent, and run it entirely on your own machine. No AWS infrastructure to
 provision, no containers, no deployment — just a Python file you can read, run,
