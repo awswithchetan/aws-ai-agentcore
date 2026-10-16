@@ -1,5 +1,7 @@
 # Module 06 — Memory: Stateful Agents
 
+**Course link** [Udemy | Build Production-Ready AI Agent on AWS with AgentCore](https://www.udemy.com/course/build-production-ready-ai-agent-on-aws/?referralCode=C3F97ED4D706F1112786)
+
 In this module you will add persistent memory to Aria agent so it remembers
 customers across sessions. After this module, Aria can greet returning
 customers by name, recall their past issues, and personalise responses
