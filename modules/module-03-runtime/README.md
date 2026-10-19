@@ -419,6 +419,26 @@ This parameter will be used by our customer facing app (Streamlit) to know about
 |------------------|----------------------|----------------------------------|
 | `/aria/runtime_arn` | AgentCore Runtime ARN | `arn:aws:bedrock-agentcore:...` (create after deploying the Runtime) |
 
+<details>
+<summary>Via CLI (Optional)</summary>
+
+```bash
+export AWS_REGION=us-east-1
+
+# Look up the ARN of the "aria" runtime you created in Step 5
+export RUNTIME_ARN=$(aws bedrock-agentcore-control list-agent-runtimes \
+  --region "$AWS_REGION" \
+  --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeArn | [0]" \
+  --output text)
+
+echo "Runtime ARN: $RUNTIME_ARN"   # sanity check — should not be empty or "None"
+
+aws ssm put-parameter --name /aria/runtime_arn --type String \
+  --value "$RUNTIME_ARN" --overwrite --region "$AWS_REGION"
+```
+
+</details>
+
 ---
 ## Step 8 — Test with the Streamlit chat UI
 
