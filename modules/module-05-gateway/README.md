@@ -287,7 +287,7 @@ aws iam put-role-policy \
 
 </details>
 
-### 3b. Create the gateway (Console)
+### 3b. Create the gateway (Console only)
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Gateways**
 2. Click **Create gateway**
@@ -297,14 +297,14 @@ aws iam put-role-policy \
      - **Description**: `ShopSmart tool gateway — orders, products, returns`
      - **Exception level debug**: ✅ enabled (helpful during development)
 
-4. **Inbound Auth configurations**: select **Use IAM Permission**
-   > The agent's execution role signs requests to the Gateway with SigV4 —
-   > no separate JWT config needed here.
-
-5. **Permissions**:
+4. **Permissions**:
    - Select **Use an IAM service role**
    - Choose **Use an existing service role** and select `ShopSmartGatewayRole`
      (created in step 3a)
+
+5. **Inbound Auth configurations**: select **Use IAM Permission**
+   > The agent's execution role signs requests to the Gateway with SigV4 —
+   > no separate JWT config needed here.
 
 6. **Target** — configure the ShopSmart REST API:
    - **Target protocol**: **MCP Target**
@@ -324,7 +324,7 @@ aws iam put-role-policy \
 
    Selecting **IAM Role** here sets the outbound auth type only — there's no role
    picker. The Gateway signs the outbound call with the service role you selected
-   in step 5 (`ShopSmartGatewayRole`), which already carries the
+   in step 4 (`ShopSmartGatewayRole`), which already carries the
    `execute-api:Invoke` permission from step 3a.
 
 7. Click **Create gateway**
@@ -354,7 +354,18 @@ startup (the same pattern used for the other `/aria/` parameters).
 <summary>Via CLI (Optional)</summary>
 
 ```bash
-export GATEWAY_ENDPOINT=<your-gateway-endpoint-url>
+GATEWAY_ID=$(aws bedrock-agentcore-control list-gateways \
+  --region "$AWS_REGION" \
+  --query "items[?name=='shopsmart-gateway'].gatewayId | [0]" \
+  --output text)
+
+export GATEWAY_ENDPOINT=$(aws bedrock-agentcore-control get-gateway \
+  --region "$AWS_REGION" \
+  --gateway-identifier "$GATEWAY_ID" \
+  --query "gatewayUrl" \
+  --output text)
+
+echo "Gateway endpoint: $GATEWAY_ENDPOINT"   # verify — should not be empty or "None"
 
 aws ssm put-parameter \
   --name /aria/gateway_endpoint \
@@ -403,11 +414,8 @@ Replace `<GATEWAY_ARN>` with the Gateway ARN from Step 3
 <summary>Via CLI (Optional)</summary>
 
 ```bash
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export AWS_REGION=us-east-1
-
 GATEWAY_ARN=$(aws bedrock-agentcore-control get-gateway \
-  --gateway-identifier <your-gateway-id> \
+  --gateway-identifier "$GATEWAY_ID" \
   --region $AWS_REGION \
   --query 'gatewayArn' --output text)
 
@@ -520,7 +528,9 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 
 Then roll the Runtime onto the new image:
 
-### Via AWS Console
+### Update the AgentCore Runtime
+
+#### Via AWS Console
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime**
 2. Select `aria` and choose **Update** (or **Edit**) - If your image tag is the same (latest) then you can simply update the description.
