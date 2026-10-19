@@ -234,7 +234,6 @@ Parameters live under the `/aria/` prefix:
 
 ```bash
 export AWS_REGION=us-east-1
-export RUNTIME_ARN="<your-runtime-arn>"
 
 aws ssm put-parameter --name /aria/region --type String \
   --value "$AWS_REGION" --overwrite --region "$AWS_REGION"
