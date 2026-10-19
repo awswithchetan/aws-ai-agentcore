@@ -114,6 +114,52 @@ python modules/module-02-first-agent/agent.py
 You'll get a chat prompt in your terminal. Type a message and press Enter; type
 `exit` or `quit` to stop.
 
+<details>
+<summary>Troubleshooting: first-run errors</summary>
+
+**1. `AccessDeniedException` on your first message.** If you've only just
+requested access to the Anthropic Claude models (or just enabled it by
+submitting the use-case form), your first message may fail with an error like
+this:
+
+```text
+botocore.errorfactory.AccessDeniedException: An error occurred (AccessDeniedException) when calling the ConverseStream operation: Model access is denied due to INVALID_PAYMENT_INSTRUMENT:A valid payment instrument must be provided.. Your AWS Marketplace subscription for this model cannot be completed at this time. If you recently fixed this issue, try again after 5 minutes.
+```
+
+This usually means one of two things:
+- **Access is still provisioning.** Newly granted Anthropic model access can
+  take a few minutes to propagate through AWS Marketplace. Wait about **5
+  minutes** and run the command again.
+- **A billing/payment issue.** Confirm your AWS account has a valid payment
+  method on file (AWS Billing console → Payment preferences). Once fixed, wait
+  ~5 minutes and retry.
+
+If you haven't requested Claude access at all yet, do that first in
+[Module 00 — Prerequisites](../module-00-prerequisites/README.md).
+
+**2. Try a different model if Claude access isn't available.** If you can't get
+Claude access right now, point Aria at another model you *do* have access to —
+for example an Amazon Nova model. The Module 00 inference-profile command
+filtered for `claude`; here, filter for `amazon` instead to list the available
+Amazon inference profile IDs:
+
+```bash
+aws bedrock list-inference-profiles \
+  --region "$AWS_REGION" \
+  --type-equals SYSTEM_DEFINED \
+  --query "inferenceProfileSummaries[?contains(inferenceProfileId,'amazon')].inferenceProfileId" \
+  --output table
+```
+
+Then export your chosen model ID before running Aria — no code change required:
+
+```bash
+export ARIA_MODEL_ID="us.amazon.nova-pro-v1:0"
+python modules/module-02-first-agent/agent.py
+```
+
+</details>
+
 ---
 
 ## Step 3 — Talk to Aria and watch the tools fire
