@@ -359,20 +359,18 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 <summary>Create the Runtime via CLI (Optional)</summary>
 
 ```bash
-aws bedrock-agentcore control create-agent-runtime \
+aws bedrock-agentcore-control create-agent-runtime \
   --agent-runtime-name "aria" \
   --description "ShopSmart AI customer support agent" \
   --agent-runtime-artifact "{
-    \"containerArtifact\": {
-      \"containerImage\": {
-        \"uri\": \"$ECR_REPO:latest\"
-      }
+    \"containerConfiguration\": {
+      \"containerUri\": \"$ECR_REPO:latest\"
     }
   }" \
   --environment-variables "AWS_REGION=$AWS_REGION" \
   --network-configuration '{"networkMode": "PUBLIC"}' \
-  --execution-role-arn "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AriaAgentExecutionRole" \
-  --region us-east-1
+  --role-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/AriaAgentExecutionRole" \
+  --region "$AWS_REGION"
 ```
 
 </details>
