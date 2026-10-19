@@ -135,11 +135,14 @@ For Aria, use **Built-in strategies**.
 <summary>Via CLI</summary>
 
 ```bash
+export AWS_REGION=us-east-1
+
 aws bedrock-agentcore-control create-memory \
   --name aria_memory \
   --description "Persistent memory for Aria customer support agent" \
   --memory-strategies '[{"semanticMemoryStrategy": {"name": "aria_semantic"}}]' \
-  --region us-east-1
+  --event-expiry-duration 90 \
+  --region "$AWS_REGION"
 ```
 </details>
 
@@ -147,42 +150,49 @@ aws bedrock-agentcore-control create-memory \
 
 ## Step 2 — Add memory_id and memory_strategy_id to SSM
 
-Get your Strategy ID from the AWS console or run the following CLI command:
-
-```bash
-aws bedrock-agentcore-control get-memory \
-  --memory-id <YOUR_MEMORY_ID> \
-  --region us-east-1 \
-  --query "memory.strategies[*].{id:strategyId,type:type}" \
-  --output table
-```
+Get your **Memory ID** and **Strategy ID**, then store both in SSM so the agent
+can read them at startup.
 
 ### Via AWS Console
 
-Create two parameters in **Systems Manager → Parameter Store**:
+1. Go to **AWS Console → Amazon Bedrock → AgentCore → Memory**
+2. Open `aria_memory` and copy the **Memory ID** shown on the detail page
+3. Under the strategies list, copy the **Strategy ID**
+   (e.g. `aria_semantic-XXXXXXXXXX`)
+4. Go to **Systems Manager → Parameter Store** and create two **Standard**,
+   **String** parameters:
 
-| Name | Value |
-|---|---|
-| `/aria/memory_id` | your Memory ID (e.g. `aria_memory-XXXXXXXXXX`) |
-| `/aria/memory_strategy_id` | your Strategy ID (e.g. `semantic_builtin_XXXXX-XXXXXXXXXX`) |
+   | Name | Value |
+   |---|---|
+   | `/aria/memory_id` | your Memory ID (e.g. `aria_memory-XXXXXXXXXX`) |
+   | `/aria/memory_strategy_id` | your Strategy ID (e.g. `aria_semantic-XXXXXXXXXX`) |
 
 <details>
 <summary>Via CLI</summary>
 
-`put_ssm_params.sh` requires `KNOWLEDGE_BASE_ID` and re-writes the
-`knowledge_base_id` parameter on every run, so export your existing KB ID
-alongside the memory variables. `gateway_endpoint` is managed separately and
-is left untouched by this script.
+Retrieve the Memory ID and Strategy ID, then write both to SSM:
 
 ```bash
-export KNOWLEDGE_BASE_ID=<your-existing-kb-id>
-export MEMORY_ID=<your-memory-id>
-export MEMORY_STRATEGY_ID=<your-strategy-id>
+export MEMORY_ID=$(aws bedrock-agentcore-control list-memories \
+  --region "$AWS_REGION" \
+  --query "memories[?starts_with(id, 'aria_memory-')].id | [0]" \
+  --output text)
 
-KNOWLEDGE_BASE_ID=$KNOWLEDGE_BASE_ID \
-MEMORY_ID=$MEMORY_ID \
-MEMORY_STRATEGY_ID=$MEMORY_STRATEGY_ID \
-bash aria-agent/scripts/put_ssm_params.sh
+echo "Memory ID: $MEMORY_ID"   # verify — should not be empty or "None"
+
+export MEMORY_STRATEGY_ID=$(aws bedrock-agentcore-control get-memory \
+  --memory-id "$MEMORY_ID" \
+  --region "$AWS_REGION" \
+  --query "memory.strategies[0].strategyId" \
+  --output text)
+
+echo "Strategy ID: $MEMORY_STRATEGY_ID"   # verify — should not be empty or "None"
+
+aws ssm put-parameter --name /aria/memory_id --type String \
+  --value "$MEMORY_ID" --overwrite --region "$AWS_REGION"
+
+aws ssm put-parameter --name /aria/memory_strategy_id --type String \
+  --value "$MEMORY_STRATEGY_ID" --overwrite --region "$AWS_REGION"
 ```
 
 </details>
@@ -316,7 +326,7 @@ retrieval_config = {
 The namespace template uses `{actorId}` and `{memoryStrategyId}` as
 placeholders. The SDK resolves them at retrieval time — the final path becomes:
 ```
-/strategies/semantic_builtin_XXXXX-XXXXXXXXXX/actors/C001/
+/strategies/aria_semantic-XXXXXXXXXX/actors/C001/
 ```
 
 Before each response, Strands retrieves the top-5 most relevant facts for
