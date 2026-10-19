@@ -361,7 +361,7 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 ```bash
 aws bedrock-agentcore-control create-agent-runtime \
   --agent-runtime-name "aria" \
-  --description "ShopSmart AI customer support agent" \
+  --description "Module 03 — Runtime" \
   --agent-runtime-artifact "{
     \"containerConfiguration\": {
       \"containerUri\": \"$ECR_REPO:latest\"

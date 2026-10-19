@@ -376,15 +376,23 @@ export RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
   --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
   --output text)
 
-aws bedrock-agentcore control update-agent-runtime \
+aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id "$RUNTIME_ID" \
   --agent-runtime-artifact "{
-    \"containerArtifact\": {
-      \"containerImage\": { \"uri\": \"$ECR_REPO:latest\" }
+    \"containerConfiguration\": {
+      \"containerUri\": \"$ECR_REPO:latest\"
     }
   }" \
+  --role-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/AriaAgentExecutionRole" \
+  --environment-variables "AWS_REGION=$AWS_REGION" \
+  --network-configuration '{"networkMode": "PUBLIC"}' \
+  --description "Module 06 — Memory (updated via CLI)" \
   --region "$AWS_REGION"
 ```
+
+> `update-agent-runtime` is a full replace, not a partial patch — any field you
+> omit is reset to defaults, not preserved. Always re-supply the fields set at
+> create time (role ARN, environment variables, and network configuration).
 
 </details>
 

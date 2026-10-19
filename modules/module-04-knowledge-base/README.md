@@ -71,8 +71,11 @@ The documents are already in the repo at `shopsmart-backend/knowledge-base/`. Yo
 <summary>Via CLI (Optional)</summary>
 
 ```bash
-# Replace <your-account-id> with your actual AWS account ID
-aws s3 mb s3://shopsmart-knowledge-base-<your-account-id> --region us-east-1
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export KB_BUCKET="shopsmart-knowledge-base-$AWS_ACCOUNT_ID"
+
+aws s3 mb "s3://$KB_BUCKET" --region "$AWS_REGION"
 ```
 
 </details>
@@ -94,11 +97,11 @@ aws s3 mb s3://shopsmart-knowledge-base-<your-account-id> --region us-east-1
 ```bash
 # From the repo root
 aws s3 cp shopsmart-backend/knowledge-base/ \
-  s3://shopsmart-knowledge-base-<your-account-id>/ \
+  "s3://$KB_BUCKET/" \
   --recursive
 
 # Verify the upload
-aws s3 ls s3://shopsmart-knowledge-base-<your-account-id>/
+aws s3 ls "s3://$KB_BUCKET/"
 ```
 
 </details>
@@ -146,6 +149,34 @@ After creation, the Knowledge Base automatically syncs the data source:
 2. Under **Data sources**, check that `shopsmart-docs` shows sync status as **Available**
 3. If the sync failed or you update documents in S3 later, select the data source and click **Sync** to re-trigger
 
+<details>
+<summary>Via CLI (Optional)</summary>
+
+Unlike the other steps in this module, creating the Knowledge Base is **done
+through the console only** — there is no simple one-command CLI equivalent.
+
+The console's **Bedrock Managed KB + Managed embeddings** option provisions and
+wires several resources for you behind a single click:
+
+- a vector store (e.g. OpenSearch Serverless — collection plus encryption,
+  network, and data-access policies)
+- the vector index with the correct field mappings
+- an IAM service role trusting Bedrock with access to the vector store, the S3
+  data source, and the embedding model
+
+The `aws bedrock-agent create-knowledge-base` API has **no fully managed vector
+store option** — `--storage-configuration` requires you to stand up and
+reference one of the supported stores (OpenSearch Serverless, Aurora/RDS,
+Pinecone, etc.) yourself, plus create the index and the service role. That's a
+multi-resource setup well beyond the lightweight CLI blocks used elsewhere in
+this course.
+
+For that reason we recommend creating the Knowledge Base via the console as
+described above. The remaining steps in this module continue via CLI as normal
+once you have the Knowledge Base ID.
+
+</details>
+
 ---
 
 ## Step 4 — Test the Knowledge Base directly
@@ -180,8 +211,12 @@ alongside the `/aria/region` and `/aria/model_id` parameters from Module 03.
 <summary>Via CLI (Optional)</summary>
 
 ```bash
-export AWS_REGION=us-east-1
-export KNOWLEDGE_BASE_ID="<your-kb-id-from-step-3>"
+export KNOWLEDGE_BASE_ID=$(aws bedrock-agent list-knowledge-bases \
+  --region "$AWS_REGION" \
+  --query "knowledgeBaseSummaries[?name=='shopsmart-kb'].knowledgeBaseId | [0]" \
+  --output text)
+
+echo "Knowledge Base ID: $KNOWLEDGE_BASE_ID"
 
 aws ssm put-parameter --name /aria/knowledge_base_id --type String \
   --value "$KNOWLEDGE_BASE_ID" --overwrite --region "$AWS_REGION"
@@ -226,10 +261,6 @@ agent starts but every KB lookup fails with `AccessDeniedException`.
 <summary>Via CLI (Optional)</summary>
 
 ```bash
-export AWS_REGION=us-east-1
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export KNOWLEDGE_BASE_ID="<your-kb-id-from-step-3>"
-
 aws iam put-role-policy \
   --role-name AriaAgentExecutionRole \
   --policy-name AriaKnowledgeBaseAccess \
@@ -287,8 +318,6 @@ cp modules/module-04-knowledge-base/Dockerfile aria-agent/Dockerfile
 ### Build and push the new image
 
 ```bash
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export AWS_REGION=us-east-1
 export ECR_REPO=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aria-agent
 
 aws ecr get-login-password --region $AWS_REGION \
@@ -301,9 +330,23 @@ docker push $ECR_REPO:latest
 cd ..
 ```
 
+<details>
+<summary>Note on linux/arm64</summary>
+
+AgentCore Runtime microVM only supports arm64. If your machine is amd64 (Intel/AMD),
+install QEMU once to enable cross-platform builds:
+
+```bash
+docker run --privileged --rm tonistiigi/binfmt --install arm64
+```
+
+</details>
+
 Then roll the Runtime onto the new image:
 
-### Via AWS Console
+### Update the AgentCore Runtime
+
+#### Via AWS Console
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime**
 2. Select `aria` and choose **Update** (or **Edit**)
@@ -322,15 +365,26 @@ export RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
   --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
   --output text)
 
-aws bedrock-agentcore control update-agent-runtime \
+echo "Runtime ID: $RUNTIME_ID"   # verify — should not be empty or "None"
+
+aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id "$RUNTIME_ID" \
   --agent-runtime-artifact "{
-    \"containerArtifact\": {
-      \"containerImage\": { \"uri\": \"$ECR_REPO:latest\" }
+    \"containerConfiguration\": {
+      \"containerUri\": \"$ECR_REPO:latest\"
     }
   }" \
+  --role-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/AriaAgentExecutionRole" \
+  --environment-variables "AWS_REGION=$AWS_REGION" \
+  --network-configuration '{"networkMode": "PUBLIC"}' \
+  --description "Module 04 — Knowledge Base (updated via CLI)" \
   --region "$AWS_REGION"
 ```
+
+> `update-agent-runtime` is a full replace, not a partial patch — it re-sets the
+> runtime's configuration from the values you pass. Always re-supply the fields
+> that were set at create time (role ARN, environment variables, and network
+> configuration), otherwise they are reset to defaults.
 
 </details>
 

@@ -377,6 +377,7 @@ aws bedrock-agentcore-control update-agent-runtime \
     }
   }" \
   --request-header-configuration '{"requestHeaderAllowlist": ["Authorization", "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token"]}' \
+  --description "Module 07 — Identity (updated via CLI)" \
   --region $AWS_REGION
 ```
 
@@ -547,7 +548,7 @@ aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
   --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
-  --description "Module 07 — Identity" \
+  --description "Module 07 — Identity (updated via CLI)" \
   --region $AWS_REGION
 ```
 
