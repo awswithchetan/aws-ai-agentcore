@@ -395,6 +395,14 @@ system prompt, and the order/tracking answers come from the simulated tools.
 > (`ORD-1001`, `ORD-1002`) and products baked into `agent.py`. We connect real
 > data through Gateway in Module 05.
 
+> **Seeing `<thinking>...</thinking>` in the response?** If you deployed with a
+> reasoning-style model such as Amazon Nova (instead of Claude), the Test tab
+> may show the model's inline reasoning — most often on questions that trigger a
+> tool. This is the model's own output, not an error, and the same behavior you
+> saw running locally in Module 02. See
+> [Module 02 — Try a different model](../module-02-first-agent/README.md#try-a-different-model)
+> for the full explanation.
+
 <details>
 <summary>Troubleshooting — check CloudWatch logs</summary>
 

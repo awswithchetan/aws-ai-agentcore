@@ -264,6 +264,45 @@ python modules/module-02-first-agent/agent.py
 > listed here. Whichever model you pick must be enabled for your account (see
 > [Module 00 — Prerequisites](../module-00-prerequisites/README.md)).
 
+<details>
+<summary>Why do some models show <code>&lt;thinking&gt;</code> in their replies?</summary>
+
+If you switch to a reasoning-style model such as **Amazon Nova**, you may notice
+a block like this in some responses:
+
+```text
+<thinking>
+To list all orders for customer C001, I need to use the list_orders tool with
+the provided customer ID.
+</thinking>
+```
+
+This is **the model's own output**, not something Aria's code or the chat UI
+adds — and it's not an error. Different model families format their reasoning
+differently:
+
+- **Amazon Nova** narrates its plan *inline as plain text* wrapped in
+  `<thinking>...</thinking>` tags, mainly on the turn where it decides to call a
+  tool. So you tend to see it on questions that trigger a tool (e.g. "show me my
+  orders") but **not** on questions answered directly from the system prompt
+  (e.g. "what's your return policy?").
+- **Anthropic Claude** keeps that reasoning in a separate channel that Aria
+  doesn't display, so you don't see the tags.
+
+Because this is inline text in the model's response, it shows up the same way
+whether you run Aria **locally** here in Module 02 or **deployed** on Runtime in
+later modules — it depends on the model and whether that turn involved reasoning
+before a tool call, not on how Aria is run.
+
+**Do you need to do anything?** No. The response is complete and correct — the
+tags just expose the model's reasoning. If you'd prefer to hide them, that's an
+application-level choice you'd handle in the agent code where the response text
+is produced (in later modules, where the entrypoint builds the `result` string),
+not in the chat UI. We intentionally leave the model's output untouched so you
+can see exactly what each model returns.
+
+</details>
+
 ---
 
 <details>
