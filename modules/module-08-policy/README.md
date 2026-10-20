@@ -293,51 +293,56 @@ CLI predates the Policy API — use the console flow instead.
 # The create-policy call needs the policy engine ID (not the full ARN).
 POLICY_ENGINE_ID=$(aws bedrock-agentcore-control list-policy-engines \
   --region $AWS_REGION \
-  --query "items[?name=='shopsmart_policy_engine'].policyEngineId" \
+  --query "policyEngines[?name=='shopsmart_policy_engine'].policyEngineId | [0]" \
   --output text)
 
+echo "Policy Engine ID: $POLICY_ENGINE_ID"   # verify — should not be empty or "None"
+
 # Policy 1 — allow read tools
+CEDAR='permit(
+  principal,
+  action in [
+    AgentCore::Action::"ShopSmartAPI___get_order",
+    AgentCore::Action::"ShopSmartAPI___list_orders",
+    AgentCore::Action::"ShopSmartAPI___get_product",
+    AgentCore::Action::"ShopSmartAPI___search_products"
+  ],
+  resource == AgentCore::Gateway::"'"${GATEWAY_ARN}"'"
+);'
 aws bedrock-agentcore-control create-policy \
   --policy-engine-id $POLICY_ENGINE_ID \
   --name allow_read_tools \
-  --policy-content "permit(
-  principal,
-  action in [
-    AgentCore::Action::\"ShopSmartAPI___get_order\",
-    AgentCore::Action::\"ShopSmartAPI___list_orders\",
-    AgentCore::Action::\"ShopSmartAPI___get_product\",
-    AgentCore::Action::\"ShopSmartAPI___search_products\"
-  ],
-  resource == AgentCore::Gateway::\"${GATEWAY_ARN}\"
-);" \
+  --definition "$(jq -n --arg s "$CEDAR" '{cedar:{statement:$s}}')" \
   --region $AWS_REGION
 
 # Policy 2 — allow refund requests within the $500 limit
-aws bedrock-agentcore-control create-policy \
-  --policy-engine-id $POLICY_ENGINE_ID \
-  --name limit_refund_amount \
-  --policy-content "permit(
+CEDAR='permit(
   principal,
-  action == AgentCore::Action::\"ShopSmartAPI___submit_request\",
-  resource == AgentCore::Gateway::\"${GATEWAY_ARN}\"
+  action == AgentCore::Action::"ShopSmartAPI___submit_request",
+  resource == AgentCore::Gateway::"'"${GATEWAY_ARN}"'"
 )
 when {
   context.input has refund_amount && context.input.refund_amount <= 500
-};" \
+};'
+aws bedrock-agentcore-control create-policy \
+  --policy-engine-id $POLICY_ENGINE_ID \
+  --name limit_refund_amount \
+  --definition "$(jq -n --arg s "$CEDAR" '{cedar:{statement:$s}}')" \
   --region $AWS_REGION
 
 # Policy 3 — allow non-refund requests (complaints, inquiries)
-aws bedrock-agentcore-control create-policy \
-  --policy-engine-id $POLICY_ENGINE_ID \
-  --name allow_non_refund_requests \
-  --policy-content "permit(
+CEDAR='permit(
   principal,
-  action == AgentCore::Action::\"ShopSmartAPI___submit_request\",
-  resource == AgentCore::Gateway::\"${GATEWAY_ARN}\"
+  action == AgentCore::Action::"ShopSmartAPI___submit_request",
+  resource == AgentCore::Gateway::"'"${GATEWAY_ARN}"'"
 )
 when {
   !(context.input has refund_amount)
-};" \
+};'
+aws bedrock-agentcore-control create-policy \
+  --policy-engine-id $POLICY_ENGINE_ID \
+  --name allow_non_refund_requests \
+  --definition "$(jq -n --arg s "$CEDAR" '{cedar:{statement:$s}}')" \
   --region $AWS_REGION
 ```
 
