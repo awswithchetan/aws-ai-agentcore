@@ -190,7 +190,7 @@ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output tex
 USER_POOL_ID=$(aws cognito-idp create-user-pool \
   --pool-name shopsmart-users \
   --policies '{"PasswordPolicy":{"MinimumLength":8,"RequireUppercase":true,"RequireLowercase":true,"RequireNumbers":true,"RequireSymbols":false}}' \
-  --schema '[{"Name":"name","AttributeDataType":"String","Required":true,"Mutable":true}]' \
+  --schema '[{"Name":"name","AttributeDataType":"String","Required":true,"Mutable":true},{"Name":"customer_id","AttributeDataType":"String","Mutable":true}]' \
   --auto-verified-attributes email \
   --username-attributes email \
   --region $AWS_REGION \
@@ -253,6 +253,19 @@ export AWS_REGION=us-east-1
 
 bash modules/module-07-identity/create_test_users.sh
 ```
+
+> **Troubleshooting: `Type for attribute {custom:customer_id} could not be
+> determined`.** This means your user pool's schema doesn't have the
+> `customer_id` custom attribute — common if you created the pool via CLI before
+> it included the attribute. Add it to the existing pool, then re-run the script
+> (custom attributes can be added but not renamed or removed):
+>
+> ```bash
+> aws cognito-idp add-custom-attributes \
+>   --user-pool-id "$USER_POOL_ID" \
+>   --custom-attributes '[{"Name":"customer_id","AttributeDataType":"String","Mutable":true}]' \
+>   --region "$AWS_REGION"
+> ```
 
 This creates three users, each logging in with the email/password below:
 
@@ -365,6 +378,13 @@ RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
   --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
   --output text)
 
+# Pre-flight check: confirm every variable the update command needs is set.
+for VAR in AWS_REGION RUNTIME_ID IMAGE_URI ROLE_ARN USER_POOL_ID CLIENT_ID; do
+  echo "$VAR = ${!VAR:-<MISSING>}"
+done
+# If any value shows <MISSING> (or still contains a <placeholder>), fix it
+# before running the update below.
+
 aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id $RUNTIME_ID \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$IMAGE_URI\"}}" \
@@ -412,19 +432,14 @@ Create these parameters in Systems Manager → Parameter Store:
 <summary>Add Cognito parameters via CLI</summary>
 
 ```bash
-for PARAM in \
-  "/aria/cognito_user_pool_id|${USER_POOL_ID}" \
-  "/aria/cognito_client_id|${CLIENT_ID}" \
-  "/aria/cognito_domain|${COGNITO_DOMAIN}"; do
-  IFS='|' read -r NAME VALUE <<< "$PARAM"
-  aws ssm put-parameter \
-    --name "$NAME" \
-    --value "$VALUE" \
-    --type String \
-    --overwrite \
-    --region $AWS_REGION
-  echo "Set $NAME"
-done
+aws ssm put-parameter --name /aria/cognito_user_pool_id --type String \
+  --value "$USER_POOL_ID" --overwrite --region $AWS_REGION
+
+aws ssm put-parameter --name /aria/cognito_client_id --type String \
+  --value "$CLIENT_ID" --overwrite --region $AWS_REGION
+
+aws ssm put-parameter --name /aria/cognito_domain --type String \
+  --value "$COGNITO_DOMAIN" --overwrite --region $AWS_REGION
 ```
 
 </details>
@@ -528,6 +543,10 @@ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output tex
 export AWS_REGION=us-east-1
 export ECR_REPO=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/aria-agent
 
+# Needed again below for the JWT authorizer — update is a full PUT (see note).
+export USER_POOL_ID=<your-user-pool-id>      # e.g. us-east-1_XXXXXXXXX
+export CLIENT_ID=<your-app-client-id>
+
 aws ecr get-login-password --region $AWS_REGION \
   | docker login --username AWS --password-stdin \
     $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
@@ -548,9 +567,22 @@ aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-artifact "{\"containerConfiguration\":{\"containerUri\":\"$ECR_REPO:latest\"}}" \
   --role-arn "arn:aws:iam::$AWS_ACCOUNT_ID:role/AriaAgentExecutionRole" \
   --network-configuration '{"networkMode":"PUBLIC"}' \
+  --authorizer-configuration "{
+    \"customJWTAuthorizer\": {
+      \"discoveryUrl\": \"https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/openid-configuration\",
+      \"allowedClients\": [\"${CLIENT_ID}\"]
+    }
+  }" \
+  --request-header-configuration '{"requestHeaderAllowlist": ["Authorization", "X-Amzn-Bedrock-AgentCore-Runtime-Custom-Id-Token"]}' \
   --description "Module 07 — Identity (updated via CLI)" \
   --region $AWS_REGION
 ```
+
+> `update-agent-runtime` is a full PUT — any field you omit is reset, not
+> preserved. You configured the JWT authorizer and the request-header allowlist
+> in Step 3, so you **must re-supply them here**, otherwise this redeploy would
+> strip them: the Runtime would stop validating Cognito tokens and the id-token
+> header would no longer reach `agent.py`, breaking identity entirely.
 
 Wait for the runtime status to return to Ready.
 
