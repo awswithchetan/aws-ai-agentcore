@@ -147,9 +147,27 @@ to the role you created for the Module 05 Gateway (e.g. `ShopSmartGatewayRole`).
 
 ```bash
 export AWS_REGION=us-east-1
-export GATEWAY_ROLE=ShopSmartGatewayRole   # the role attached to your Gateway
-export POLICY_ENGINE_ARN=<your-policy-engine-arn>
-export GATEWAY_ARN=<your-gateway-arn>
+
+GATEWAY_ID=$(aws bedrock-agentcore-control list-gateways \
+  --region $AWS_REGION \
+  --query "items[?name=='shopsmart-gateway'].gatewayId | [0]" \
+  --output text)
+
+# Fetch the gateway's ARN and the role it actually runs as — don't hardcode the
+# role name (a learner may have named it differently in Module 05).
+read -r GATEWAY_ARN GW_ROLE_ARN < <(aws bedrock-agentcore-control get-gateway \
+  --gateway-identifier "$GATEWAY_ID" \
+  --region $AWS_REGION \
+  --query "[gatewayArn, roleArn]" --output text)
+
+GATEWAY_ROLE="${GW_ROLE_ARN##*/}"   # role name = last segment of the role ARN
+
+# Pre-flight check: confirm every variable the IAM command needs is set.
+for VAR in AWS_REGION GATEWAY_ID GATEWAY_ARN GATEWAY_ROLE POLICY_ENGINE_ARN; do
+  echo "$VAR = ${!VAR:-<MISSING>}"
+done
+# POLICY_ENGINE_ARN is reused from Step 1. If any value shows <MISSING>, fix it
+# before running the command below.
 
 aws iam put-role-policy \
   --role-name "$GATEWAY_ROLE" \
@@ -197,22 +215,32 @@ aws iam put-role-policy \
 <summary>Attach policy engine via CLI</summary>
 
 ```bash
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export AWS_REGION=us-east-1
-
-GATEWAY_ID=$(aws bedrock-agentcore-control list-gateways \
+# Reuses GATEWAY_ID and POLICY_ENGINE_ARN set earlier. update-gateway is a full
+# PUT, so fetch the gateway's current name / role / authorizer type and
+# re-supply them alongside the policy-engine attachment.
+read -r GW_NAME GW_ROLE_ARN GW_AUTH_TYPE < <(aws bedrock-agentcore-control get-gateway \
+  --gateway-identifier "$GATEWAY_ID" \
   --region $AWS_REGION \
-  --query "gateways[?name=='shopsmart-gateway'].gatewayId" \
-  --output text)
+  --query "[name, roleArn, authorizerType]" --output text)
+
+echo "Name: $GW_NAME | Role: $GW_ROLE_ARN | Authorizer: $GW_AUTH_TYPE"
 
 aws bedrock-agentcore-control update-gateway \
-  --gateway-id $GATEWAY_ID \
+  --gateway-identifier "$GATEWAY_ID" \
+  --name "$GW_NAME" \
+  --role-arn "$GW_ROLE_ARN" \
+  --authorizer-type "$GW_AUTH_TYPE" \
   --policy-engine-configuration "{
-    \"policyEngineArn\": \"${POLICY_ENGINE_ARN}\",
-    \"attachMode\": \"ENFORCE\"
+    \"arn\": \"${POLICY_ENGINE_ARN}\",
+    \"mode\": \"ENFORCE\"
   }" \
   --region $AWS_REGION
 ```
+
+> `update-gateway` is a full PUT — `--name`, `--role-arn`, and
+> `--authorizer-type` are required and omitting other settings resets them. The
+> `get-gateway` call above reads the gateway's current values so the attach
+> doesn't disturb the Module 05 configuration.
 
 </details>
 
