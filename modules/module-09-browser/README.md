@@ -133,21 +133,9 @@ during a tracking lookup — kept distinct from the carrier site bucket.
 <summary>Via CLI (Optional)</summary>
 
 ```bash
-export SCREENSHOT_BUCKET="shopsmart-browser-screenshots-$(aws sts get-caller-identity --query Account --output text)"
+export SCREENSHOT_BUCKET="shopsmart-browser-screenshots-$AWS_ACCOUNT_ID"
 
-aws s3api create-bucket \
-  --bucket "$SCREENSHOT_BUCKET" \
-  --region "$AWS_REGION" \
-  $( [ "$AWS_REGION" != "us-east-1" ] && echo --create-bucket-configuration LocationConstraint="$AWS_REGION" )
-
-# Keep the bucket fully private — screenshots are shared only via presigned URLs.
-aws s3api put-public-access-block \
-  --bucket "$SCREENSHOT_BUCKET" \
-  --public-access-block-configuration \
-    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true \
-  --region "$AWS_REGION"
-
-echo "$SCREENSHOT_BUCKET"
+aws s3 mb "s3://$SCREENSHOT_BUCKET" --region "$AWS_REGION"
 ```
 
 </details>
@@ -360,13 +348,17 @@ not preserved. So the CLI path must re-supply the artifact, role, network, and
 allowlist. This is why the console update is simpler for a repeat deploy.
 
 ```bash
-export USER_POOL_ID=<your-user-pool-id>      # e.g. us-east-1_XXXXXXXXX
-export CLIENT_ID=<your-app-client-id>
-
 RUNTIME_ID=$(aws bedrock-agentcore-control list-agent-runtimes \
   --region "$AWS_REGION" \
   --query "agentRuntimes[?agentRuntimeName=='aria'].agentRuntimeId" \
   --output text)
+
+# Pre-flight check: confirm every variable the update command needs is set.
+for VAR in AWS_REGION AWS_ACCOUNT_ID ECR_REPO RUNTIME_ID USER_POOL_ID CLIENT_ID; do
+  echo "$VAR = ${!VAR:-<MISSING>}"
+done
+# If any value shows <MISSING> (or still contains a <placeholder>), fix it
+# before running the update below.
 
 aws bedrock-agentcore-control update-agent-runtime \
   --agent-runtime-id "$RUNTIME_ID" \
