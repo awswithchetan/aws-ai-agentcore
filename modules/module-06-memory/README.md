@@ -370,7 +370,7 @@ docker run --privileged --rm tonistiigi/binfmt --install arm64
 
 Then roll the Runtime onto the new image:
 
-### Via AWS Console
+### Update Runtime Via AWS Console
 
 1. Go to **AWS Console → Amazon Bedrock → AgentCore → Runtime**
 2. Select `aria` and choose **Update** (or **Edit**) - If your image tag is the same (latest) then you can simply update the description.
